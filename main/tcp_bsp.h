@@ -21,8 +21,6 @@ extern "C" {
 #define TCP_SERVER_CLIENT_OPTION FALSE              //esp32作为client
 //#define TCP_SERVER_CLIENT_OPTION TRUE              //esp32作为server
 
-#define TAG                     "TCP"            //打印的tag
-
 //server
 //AP热点模式的配置信息
 #define SOFT_AP_SSID            "TCP-SERVER"     //账号

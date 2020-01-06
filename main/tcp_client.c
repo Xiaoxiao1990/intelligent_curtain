@@ -12,20 +12,9 @@
 #include "esp_err.h"
 #include "nvs_flash.h"
 #include "tcp_bsp.h"
-/*
-===========================
-函数定义
-===========================
-*/
 
-/*
-* 任务：建立TCP连接并从TCP接收数据
-* @param[in]   void  		       :无
-* @retval      void                :无
-* @note        修改日志
-*               Ver0.0.1:
-                    hx-zsj, 2018/08/06, 初始化版本\n
-*/
+static const char *TAG = "TCP Client";
+
 void tcp_client(void *pvParameters)
 {
     ESP_LOGI(TAG, "start tcp connecting....");
