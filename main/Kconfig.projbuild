@@ -1,0 +1,164 @@
+menu "Intelligent Curtain Configuration"
+    config OPTICAL_SENSOR_ENABLE_GPIO
+            int "OPTICAL SENSOR GPIO number"
+            range 0 34
+            default 26
+            help
+                GPIO26 is the optical sensor enable gpio pin.
+
+                Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used to blink.
+
+                GPIOs 35-39 are input-only so cannot be used as outputs.
+
+    choice OPTICAL_SENSOR_ADC2_CHANNEL
+        bool "ADC2 Channel Num"
+        default OPTICAL_SENSOR_ADC2_CHANNEL_8
+        help
+            The channel of ADC2 used in this example.
+
+        config OPTICAL_SENSOR_ADC2_CHANNEL_0
+            bool "ADC2 Channel 0 (GPIO 4)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_1
+            bool "ADC2 Channel 1 (GPIO 0)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_2
+            bool "ADC2 Channel 2 (GPIO 2)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_3
+            bool "ADC2 Channel 3 (GPIO 15)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_4
+            bool "ADC2 Channel 4 (GPIO 13)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_5
+            bool "ADC2 Channel 5 (GPIO 12)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_6
+            bool "ADC2 Channel 6 (GPIO 14)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_7
+            bool "ADC2 Channel 7 (GPIO 27)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_8
+            bool "ADC2 Channel 8 (GPIO 25)"
+        config OPTICAL_SENSOR_ADC2_CHANNEL_9
+            bool "ADC2 Channel 9 (GPIO 26)"
+    endchoice
+
+    config OPTICAL_SENSOR_ADC2_CHANNEL
+        int
+        default 0 if OPTICAL_SENSOR_ADC2_CHANNEL_0
+        default 1 if OPTICAL_SENSOR_ADC2_CHANNEL_1
+        default 2 if OPTICAL_SENSOR_ADC2_CHANNEL_2
+        default 3 if OPTICAL_SENSOR_ADC2_CHANNEL_3
+        default 4 if OPTICAL_SENSOR_ADC2_CHANNEL_4
+        default 5 if OPTICAL_SENSOR_ADC2_CHANNEL_5
+        default 6 if OPTICAL_SENSOR_ADC2_CHANNEL_6
+        default 7 if OPTICAL_SENSOR_ADC2_CHANNEL_7
+        default 8 if OPTICAL_SENSOR_ADC2_CHANNEL_8
+        default 9 if OPTICAL_SENSOR_ADC2_CHANNEL_9
+
+    choice DAC_EXAMPLE_CHANNEL
+        bool "DAC Channel Num"
+        default DAC_EXAMPLE_CHANNEL_1
+        help
+            The channel of DAC used in this example.
+
+        config DAC_EXAMPLE_CHANNEL_1
+            bool "DAC Channel 1 (GPIO25)"
+        config DAC_EXAMPLE_CHANNEL_2
+            bool "DAC Channel 2 (GPIO26)"
+    endchoice
+
+    menu "Network Configuration"
+
+    choice TCP_PERF_WIFI_MODE
+        prompt "AP or STA"
+        default TCP_PERF_ESP_IS_STATION
+        help
+            Whether the esp32 is softAP or station.
+
+    config TCP_PERF_ESP_IS_SOFTAP
+        bool "SoftAP"
+    config TCP_PERF_ESP_IS_STATION
+        bool "Station"
+    endchoice
+
+    config TCP_PERF_WIFI_MODE_AP
+        bool
+        default y if TCP_PERF_ESP_IS_SOFTAP
+        default n if TCP_PERF_ESP_IS_STATION
+
+    choice TCP_PERF_SERVER_CLIENT
+        prompt "server or client"
+        default TCP_PERF_ESP_IS_CLIENT
+        help
+    	Whether the esp32 is tcp server or client.
+
+    	We suggest to choose "client" if you choose "station" in "wifi mode".
+
+    config TCP_PERF_ESP_IS_SERVER
+        bool "server"
+    config TCP_PERF_ESP_IS_CLIENT
+        bool "client"
+    endchoice
+
+    config TCP_PERF_SERVER
+        bool
+        default y if TCP_PERF_ESP_IS_SERVER
+        default n if TCP_PERF_ESP_IS_CLIENT
+
+    choice TCP_PERF_TX_RX
+        prompt "send or receive"
+        default TCP_PERF_ESP_RECV
+        help
+    	Whether the esp32 will send or receive.
+
+    config TCP_PERF_ESP_SEND
+        bool "send"
+    config TCP_PERF_ESP_RECV
+        bool "receive"
+    endchoice
+
+    config TCP_PERF_TX
+        bool
+        default y if TCP_PERF_ESP_SEND
+        default n if TCP_PERF_ESP_RECV
+
+    config TCP_PERF_DELAY_DEBUG
+        bool "TCP performance delay info enable"
+        depends on TCP_PERF_TX
+        default n
+        help
+    	Show TCP performance delay info.
+
+    	Ignore in TCP RX.
+
+    config TCP_PERF_WIFI_SSID
+        string "WiFi SSID"
+        default "@PHICOMM_40"
+        help
+    	SSID (network name) for the example to connect to.
+
+    config TCP_PERF_WIFI_PASSWORD
+        string "WiFi Password"
+        default "zjyZJY160526"
+        help
+    	WiFi password (WPA or WPA2) for the example to use.
+
+    config TCP_PERF_SERVER_PORT
+        int "TCP server port"
+        default 4567
+        help
+    	Which will the tcp server use.
+
+    config TCP_PERF_SERVER_IP
+        string "TCP server ip"
+        depends on TCP_PERF_ESP_IS_CLIENT
+        default "192.168.4.1"
+        help
+    	IP of TCP server.
+
+    	Ignore in TCP server.
+
+    config TCP_PERF_PKT_SIZE
+        int "Size of TCP packet"
+        default 1460
+        help
+    	the data send&recv packet size.
+
+    endmenu
+endmenu
