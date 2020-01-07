@@ -135,7 +135,7 @@ static void tp_read_task(void *pvParameter)
             reconfiguartaion_network = true;
             ESP_LOGE(TAG, "TimeOut: %d", time_cnt);
             network_state = NETWORK_DO_NOT_CONFIG;
-            Curtain.is_wifi_configed = false;
+            Curtain.is_wifi_config = false;
         }
 //
 //        if (cnt++ % 500 == 0) {

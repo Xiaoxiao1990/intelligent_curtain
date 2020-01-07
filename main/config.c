@@ -89,13 +89,13 @@ esp_err_t params_init(void)
                         "Wi-Fi AP PASS: %s\n"
                         "Server IP: %s\n"
                         "Server Port: %d",
-                 Curtain.is_wifi_configed ? "true" : "false",
+                 Curtain.is_wifi_config ? "true" : "false",
                  Curtain.wifi_config.sta.ssid,
                  Curtain.wifi_config.sta.password,
                  Curtain.wifi_config.ap.ssid,
                  Curtain.wifi_config.ap.password,
-                 Curtain.server_address.ip,
-                 Curtain.server_address.port);
+                 Curtain.device_params.server_address.ip,
+                 Curtain.device_params.server_address.port);
     }
 
     // Close

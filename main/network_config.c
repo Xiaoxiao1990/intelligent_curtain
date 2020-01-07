@@ -51,10 +51,10 @@ static void sc_callback(smartconfig_status_t status, void *pdata) {
             ESP_LOGI(TAG, "SSID:%s", new_wifi_config->sta.ssid);
             ESP_LOGI(TAG, "PASSWORD:%s", new_wifi_config->sta.password);
             memcpy(&Curtain.wifi_config, new_wifi_config, sizeof(wifi_config_t));
-            Curtain.is_wifi_configed = true;
+            Curtain.is_wifi_config = true;
             if (ESP_OK != params_save()) {
                 ESP_LOGE(TAG, "Save wifi config failed.");
-                Curtain.is_wifi_configed = false;
+                Curtain.is_wifi_config = false;
             } else {
                 ESP_LOGI(TAG, "Save wifi config success.");
             }
@@ -124,7 +124,7 @@ void smart_config_task(void *parm) {
 static esp_err_t event_handler(void *ctx, system_event_t *event) {
     switch (event->event_id) {
         case SYSTEM_EVENT_STA_START:
-            if (Curtain.is_wifi_configed) {
+            if (Curtain.is_wifi_config) {
                 ESP_LOGI(TAG1, "Wi-Fi has been configuration.");
                 esp_wifi_connect();
             } else {
@@ -166,7 +166,7 @@ void network_config_unit_test(void)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
 
-    if (Curtain.is_wifi_configed) {
+    if (Curtain.is_wifi_config) {
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &Curtain.wifi_config));
         network_state = NETWORK_CONNECTTING;
     } else {

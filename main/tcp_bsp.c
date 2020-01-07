@@ -12,6 +12,8 @@
 #include "esp_log.h"
 #include "tcp_bsp.h"
 #include "cJSON.h"
+#include "esp_types.h"
+#include "config.h"
 
 #define DEVICE_ID       "LY0123456789"
 
@@ -64,13 +66,30 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
     return ESP_OK;
 }
 
+#define CONSTANT_STRING_DEFINE(s)  static const char * s##_CONST_STRING = #s
+
+CONSTANT_STRING_DEFINE(message);
+CONSTANT_STRING_DEFINE(error);
+CONSTANT_STRING_DEFINE(code);
+CONSTANT_STRING_DEFINE(device_id);
+CONSTANT_STRING_DEFINE(message_type);
+CONSTANT_STRING_DEFINE(device_params);
+CONSTANT_STRING_DEFINE(battery);
+CONSTANT_STRING_DEFINE(optical_sensor_status);
+CONSTANT_STRING_DEFINE(lumen);
+CONSTANT_STRING_DEFINE(curtain_position);
+CONSTANT_STRING_DEFINE(report_time);
+CONSTANT_STRING_DEFINE(update);
+CONSTANT_STRING_DEFINE(result);
+CONSTANT_STRING_DEFINE(get);
+CONSTANT_STRING_DEFINE(set);
+CONSTANT_STRING_DEFINE(action);
+CONSTANT_STRING_DEFINE(server_ip);
+CONSTANT_STRING_DEFINE(server_port);
+
 static void message_dispatch(int socket, cJSON *root)
 {
-    char *msg_ok = "{\"result\":\"ok\",\"code\":0}";
-    char *msg_fail = "{\"result\":\"fail\",\"code\":-1}";
-
-    cJSON *rsp_msg = NULL;
-
+    cJSON *rsp_msg = cJSON_CreateObject();
     char *json_printed = NULL;
 
     if (root == NULL) {
@@ -83,11 +102,12 @@ static void message_dispatch(int socket, cJSON *root)
     if (json_printed)
         free(json_printed);
 
-    if (!cJSON_HasObjectItem(root, "device_id")) {
+    if (!cJSON_HasObjectItem(root, device_id_CONST_STRING)) {
         ESP_LOGE(TAG, "No device_id field.");
-        cJSON_AddStringToObject(rsp_msg, "result", "Device ID is required.");
-        cJSON_AddNumberToObject(rsp_msg, "code", -1);
+        cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Device ID is required.");
+        cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
         json_printed = cJSON_Print(rsp_msg);
+        ESP_LOGI(TAG, "RSP_MSG: %s", json_printed);
         send(socket, json_printed, strlen(json_printed), 0);
         if (json_printed)
             free(json_printed);
@@ -96,10 +116,10 @@ static void message_dispatch(int socket, cJSON *root)
         return;
     }
 
-    if (!cJSON_HasObjectItem(root, "message_type")) {
+    if (!cJSON_HasObjectItem(root, message_type_CONST_STRING)) {
         ESP_LOGE(TAG, "No message_type field.");
-        cJSON_AddStringToObject(rsp_msg, "result", "Message type is required.");
-        cJSON_AddNumberToObject(rsp_msg, "code", -1);
+        cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Message type is required.");
+        cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
         json_printed = cJSON_Print(rsp_msg);
         send(socket, json_printed, strlen(json_printed), 0);
         if (json_printed)
@@ -108,9 +128,9 @@ static void message_dispatch(int socket, cJSON *root)
         return;
     }
 
-    char *message_type = cJSON_GetStringValue(cJSON_GetObjectItem(root, "message_type"));
+    char *message_type = cJSON_GetStringValue(cJSON_GetObjectItem(root, message_type_CONST_STRING));
     char *device_params;
-    if (strcmp(message_type, "action") == 0) {
+    if (strcmp(message_type, action_CONST_STRING) == 0) {
         ESP_LOGE(TAG, "Actions do not implement so far.");
         cJSON_AddStringToObject(rsp_msg, "result", "Actions do not implement so far.");
         cJSON_AddNumberToObject(rsp_msg, "code", -1);
@@ -120,11 +140,11 @@ static void message_dispatch(int socket, cJSON *root)
             free(json_printed);
         cJSON_free(rsp_msg);
         return;
-    } else if (strcmp(message_type, "get") == 0) {
-        if (!cJSON_HasObjectItem(root, "device_params")) {
+    } else if (strcmp(message_type, get_CONST_STRING) == 0) {
+        if (!cJSON_HasObjectItem(root, device_params_CONST_STRING)) {
             ESP_LOGE(TAG, "No device_params field.");
-            cJSON_AddStringToObject(rsp_msg, "result", "Device params is required.");
-            cJSON_AddNumberToObject(rsp_msg, "code", -1);
+            cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Device params is required.");
+            cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
             json_printed = cJSON_Print(rsp_msg);
             send(socket, json_printed, strlen(json_printed), 0);
             if (json_printed)
@@ -133,34 +153,34 @@ static void message_dispatch(int socket, cJSON *root)
             return;
         }
 
-        device_params = cJSON_GetStringValue(cJSON_GetObjectItem(root, "device_params"));
-        cJSON_AddStringToObject(rsp_msg, "message_type", "update");
-        cJSON_AddObjectToObject(rsp_msg, "device_status");
-        cJSON *rsp_params = cJSON_GetObjectItem(rsp_msg, "device_status");
-        if (strcmp(device_params, "all") == 0) {
-            cJSON_AddNumberToObject(rsp_params, "battery", 80);
-            cJSON_AddNumberToObject(rsp_params, "optical_sensor_status", 0);
-            cJSON_AddNumberToObject(rsp_params, "lumen", 50);
-            cJSON_AddNumberToObject(rsp_params, "curtain_position", 50);
+        device_params = cJSON_GetStringValue(cJSON_GetObjectItem(root, device_params_CONST_STRING));
+        cJSON_AddStringToObject(rsp_msg, device_id_CONST_STRING, DEVICE_ID);
+        cJSON_AddStringToObject(rsp_msg, message_type_CONST_STRING, update_CONST_STRING);
+        cJSON_AddObjectToObject(rsp_msg, device_params_CONST_STRING);
+        cJSON *rsp_params = cJSON_GetObjectItem(rsp_msg, device_params_CONST_STRING);
+        if (strstr(device_params, "all") != NULL) {
+            cJSON_AddNumberToObject(rsp_params, battery_CONST_STRING, 80);
+            cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING, 0);
+            cJSON_AddNumberToObject(rsp_params, lumen_CONST_STRING, 50);
+            cJSON_AddNumberToObject(rsp_params, curtain_position_CONST_STRING, 50);
         } else {
-            cJSON *device_params_item = cJSON_GetObjectItem(root, "device_params");
-            if (cJSON_HasObjectItem(device_params_item, "battery")) {
-                cJSON_AddNumberToObject(rsp_params, "battery", 80);
+            if (strstr(device_params, battery_CONST_STRING) != NULL) {
+                cJSON_AddNumberToObject(rsp_params, battery_CONST_STRING, 80);
             }
 
-            if (cJSON_HasObjectItem(device_params_item, "optical_sensor_status")) {
-                cJSON_AddNumberToObject(rsp_params, "optical_sensor_status", 1);
+            if (strstr(device_params,optical_sensor_status_CONST_STRING) != NULL) {
+                cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING, 1);
             }
 
-            if (cJSON_HasObjectItem(device_params_item, "lumen")) {
-                cJSON_AddNumberToObject(rsp_params, "lumen", 50);
+            if (strstr(device_params, lumen_CONST_STRING) != NULL) {
+                cJSON_AddNumberToObject(rsp_params, lumen_CONST_STRING, 50);
             }
 
-            if (cJSON_HasObjectItem(device_params_item, "curtain_position")) {
-                cJSON_AddNumberToObject(rsp_params, "curtain_position", 50);
+            if (strstr(device_params, curtain_position_CONST_STRING) != NULL) {
+                cJSON_AddNumberToObject(rsp_params, curtain_position_CONST_STRING, 50);
             }
         }
-        cJSON_AddNumberToObject(rsp_params, "report_time", system_get_time());
+        cJSON_AddNumberToObject(rsp_msg, report_time_CONST_STRING, esp_timer_get_time());
 
         json_printed = cJSON_Print(rsp_msg);
         send(socket, json_printed, strlen(json_printed), 0);
@@ -168,11 +188,11 @@ static void message_dispatch(int socket, cJSON *root)
         if (json_printed)
             free(json_printed);
         cJSON_free(rsp_msg);
-    } else if (strcmp(message_type, "set") == 0) {
-        if (!cJSON_HasObjectItem(root, "device_params")) {
+    } else if (strcmp(message_type, set_CONST_STRING) == 0) {
+        if (!cJSON_HasObjectItem(root, device_params_CONST_STRING)) {
             ESP_LOGE(TAG, "No device_params field.");
-            cJSON_AddStringToObject(rsp_msg, "result", "Device params is required.");
-            cJSON_AddNumberToObject(rsp_msg, "code", -1);
+            cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Device params is required.");
+            cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
             json_printed = cJSON_Print(rsp_msg);
             send(socket, json_printed, strlen(json_printed), 0);
             if (json_printed)
@@ -206,7 +226,7 @@ static void message_dispatch(int socket, cJSON *root)
                 cJSON_AddNumberToObject(rsp_params, "curtain_position", 50);
             }
         }
-        cJSON_AddNumberToObject(rsp_params, "report_time", system_get_time());
+        cJSON_AddNumberToObject(rsp_msg, "report_time", esp_timer_get_time());
 
         json_printed = cJSON_Print(rsp_msg);
         send(socket, json_printed, strlen(json_printed), 0);
@@ -231,27 +251,38 @@ static void message_dispatch(int socket, cJSON *root)
 void recv_data(void *pvParameters) {
     int len = 0;
     char databuff[BUF_SIZE];
-    cJSON *json_data = NULL;
+    cJSON *json_data = NULL, *first_report = cJSON_CreateObject();
     char *msg_err = "{\"message\":\"error\",\"code\":-1}";
-    char *first_report_fmt = "{\n"
-                             "    \"device_id\": \"%s\",\n"
-                             "    \"message_type\": \"%s\",\n"
-                             "    \"device_status\": {\n"
-                             "        \"battery\": %d,\n"
-                             "        \"optical_sensor_status\": %d,\n"
-                             "        \"lumen\": %d,\n"
-                             "        \"curtain_position\": %d\n"
-                             "    },\n"
-                             "    \"report_time\": %d\n"
-                             "}";
+    char *json_printed = NULL;
+
     ESP_LOGI(TAG, "start received data...");
 
-    snprintf(databuff, BUF_SIZE - 1, first_report_fmt, DEVICE_ID, "update", 88, 1, 50, 50, system_get_time());
-    if (send(connect_socket, databuff, strlen(databuff), 0) < 0) {
-        ESP_LOGE(TAG, "Send first update failure.");
+    cJSON_AddStringToObject(first_report, device_id_CONST_STRING, DEVICE_ID);
+    cJSON_AddStringToObject(first_report, message_type_CONST_STRING, update_CONST_STRING);
+
+    cJSON_AddObjectToObject(first_report, device_id_CONST_STRING);
+    cJSON *device_params = cJSON_GetObjectItem(first_report, device_params_CONST_STRING);
+    cJSON_AddNumberToObject(device_params, battery_CONST_STRING, Curtain.device_params.battery);
+    cJSON_AddNumberToObject(device_params, optical_sensor_status_CONST_STRING, Curtain.device_params.optical_sensor_status);
+    cJSON_AddNumberToObject(device_params, lumen_CONST_STRING, Curtain.device_params.lumen);
+    cJSON_AddNumberToObject(device_params, curtain_position_CONST_STRING, Curtain.device_params.curtain_position);
+    cJSON_AddNumberToObject(first_report, report_time_CONST_STRING, esp_timer_get_time());
+
+    json_printed = cJSON_Print(first_report);
+
+    if (NULL == json_printed) {
+        ESP_LOGE(TAG, "Device report data structure prepare failure.");
     } else {
-        ESP_LOGI(TAG, "Send first update success!");
+        if (send(connect_socket, databuff, strlen(databuff), 0) < 0) {
+            ESP_LOGE(TAG, "Send first update failure.");
+        } else {
+            ESP_LOGI(TAG, "First update:\n%s", json_printed);
+        }
+
+        free(json_printed);
     }
+
+    cJSON_free(first_report);
 
     while (1) {
         memset(databuff, 0x00, sizeof(databuff));
