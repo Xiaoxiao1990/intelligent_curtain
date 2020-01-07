@@ -9,6 +9,7 @@ typedef enum {
     NETWORK_DO_NOT_CONFIG = 0,
     NETWORK_CONNECTTING,
     NETWORK_CONNECTED,
+    NETWORK_FIRST_CONFIG,
     NETWORK_ERROR
 } Network_State_Typedef;
 

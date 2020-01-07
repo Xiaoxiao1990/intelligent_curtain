@@ -31,7 +31,7 @@ extern "C" {
 //STA模式配置信息,即要连上的路由器的账号密码
 #define GATEWAY_SSID            "@PHICOMM_40"         //账号
 #define GATEWAY_PAS             "zjyZJY160526"       //密码
-#define TCP_SERVER_ADRESS       "192.168.1.159"     //作为client，要连接TCP服务器地址
+#define TCP_SERVER_ADRESS       "192.168.2.114"     //作为client，要连接TCP服务器地址
 #define TCP_PORT                4567               //统一的端口号，包括TCP客户端或者服务端
 
 // FreeRTOS event group to signal when we are connected to wifi

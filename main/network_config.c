@@ -142,6 +142,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
             xTaskCreate(&tcp_client, "tcp_client", 4096, NULL, 5, NULL);
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
+            network_state = NETWORK_DO_NOT_CONFIG;
             ESP_LOGI(TAG1, "SYSTEM_EVENT_STA_DISCONNECTED");
             esp_wifi_connect();
             xEventGroupClearBits(wifi_event_group, CONNECTED_BIT);
@@ -165,12 +166,30 @@ void network_config_unit_test(void)
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
-
+    int *t1 = Curtain.device_params.optical_work_time, *t2 = Curtain.device_params.curtain_work_time;
     if (Curtain.is_wifi_config) {
         ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &Curtain.wifi_config));
         network_state = NETWORK_CONNECTTING;
     } else {
-        network_state = NETWORK_DO_NOT_CONFIG;
+        network_state = NETWORK_FIRST_CONFIG;
+        t1[0] = 0;
+        t1[1] = 10;
+        t1[2] = 11;
+        t1[3] = 0;
+        t1[4] = 10;
+        t1[5] = 13;
+
+        t2[0] = 0;
+        t2[1] = 30;
+        t2[2] = 8;
+        t2[3] = 0;
+        t2[4] = 30;
+        t2[5] = 18;
+
+        Curtain.device_params.curtain_repeater = 0x41;
+        memset(&Curtain.device_params.server_address.ip, 0, IPv4_STRING_LENGTH);
+        memcpy(&Curtain.device_params.server_address.ip, CONFIG_TCP_PERF_SERVER_IP, strlen(CONFIG_TCP_PERF_SERVER_IP));
+        Curtain.device_params.server_address.port = CONFIG_TCP_PERF_SERVER_PORT;
     }
 
     ESP_ERROR_CHECK(esp_wifi_start());

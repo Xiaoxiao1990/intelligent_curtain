@@ -82,20 +82,39 @@ esp_err_t params_init(void)
             return err;
         }
 
+        int *t1 = Curtain.device_params.optical_work_time, *t2 = Curtain.device_params.curtain_work_time;
+
         ESP_LOGI(TAG, "Wi-Fi config: %s\n"
                         "Wi-Fi STA SSID: %s\n"
                         "Wi-Fi STA PASS: %s\n"
                         "Wi-Fi AP SSID: %s\n"
                         "Wi-Fi AP PASS: %s\n"
-                        "Server IP: %s\n"
-                        "Server Port: %d",
+                        "device params:{\n"
+                        "\tbattery\": %d,\n"
+                        "\toptical_sensor_status\": %d,\n"
+                        "\tlumen\": %d,\n"
+                        "\tcurtain_position: %d,\n"
+                        "\tserver_ip: %s,\n"
+                        "\tserver_port: %d,\n"
+                        "\toptical_work_time: [%d, %d, %d, %d, %d, %d],\n"
+                        "\tcurtain_work_time: [%d, %d, %d, %d, %d, %d],\n"
+                        "\tcurtain_repeater: 0x%0X"
+                        "\n}",
                  Curtain.is_wifi_config ? "true" : "false",
                  Curtain.wifi_config.sta.ssid,
                  Curtain.wifi_config.sta.password,
                  Curtain.wifi_config.ap.ssid,
                  Curtain.wifi_config.ap.password,
+                 Curtain.device_params.battery,
+                 Curtain.device_params.optical_sensor_status,
+                 Curtain.device_params.lumen,
+                 Curtain.device_params.curtain_position,
                  Curtain.device_params.server_address.ip,
-                 Curtain.device_params.server_address.port);
+                 Curtain.device_params.server_address.port,
+                 t1[5], t1[4], t1[3], t1[2], t1[1], t1[0],
+                 t2[5], t2[4], t2[3], t2[2], t2[1], t2[0],
+                 Curtain.device_params.curtain_repeater
+        );
     }
 
     // Close

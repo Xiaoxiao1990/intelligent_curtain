@@ -77,7 +77,7 @@ static void tp_read_task(void *pvParameter)
 {
     int time_cnt = 0;
     int led_cnt = 0;
-    static bool reconfiguartaion_network = false;
+    bool reconfiguartaion_network = false;
     //interrupt mode, enable touch interrupt
     touch_pad_intr_enable();
     gpio_set_level(BLINK_GPIO0, 1);
@@ -101,6 +101,15 @@ static void tp_read_task(void *pvParameter)
                 break;
             case NETWORK_CONNECTED:
                 gpio_set_level(BLINK_GPIO1, 1);
+                break;
+            case NETWORK_FIRST_CONFIG:
+                if (led_cnt++ < 3) {
+                    gpio_set_level(BLINK_GPIO1, 0);
+                } else if (led_cnt < 6) {
+                    gpio_set_level(BLINK_GPIO1, 1);
+                } else {
+                    led_cnt = 0;
+                }
                 break;
             case NETWORK_ERROR:
                 gpio_set_level(BLINK_GPIO1, 0);
@@ -130,11 +139,11 @@ static void tp_read_task(void *pvParameter)
 
         //ESP_LOGI(TAG, "Time cnt: %d", time_cnt);
 
-        if (time_cnt > 500) {
+        if (time_cnt > 300) {
             time_cnt = 0;
             reconfiguartaion_network = true;
             ESP_LOGE(TAG, "TimeOut: %d", time_cnt);
-            network_state = NETWORK_DO_NOT_CONFIG;
+            network_state = NETWORK_FIRST_CONFIG;
             Curtain.is_wifi_config = false;
         }
 //

@@ -6,9 +6,9 @@
 #define INTELLIGENT_CURTAIN_CONFIG_H
 
 #include <esp_wifi_types.h>
-
+#define IPv4_STRING_LENGTH  17
 typedef struct {
-    char ip[17];
+    char ip[IPv4_STRING_LENGTH];
     unsigned short port;
 } IPv4_Address_TypeDef;
 
@@ -34,8 +34,8 @@ typedef struct {
     uint8_t optical_sensor_status;
     uint8_t lumen;
     uint8_t curtain_position;
-    WorkTime_TypeDef optical_work_time;
-    WorkTime_TypeDef curtain_work_time;
+    int optical_work_time[6];
+    int curtain_work_time[6];
     uint8_t curtain_repeater;
     IPv4_Address_TypeDef server_address;
 } Device_Params_TypeDef;
