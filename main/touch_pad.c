@@ -213,3 +213,13 @@ void touch_pad_unit_test(void)
     // Start a task to show what pads have been touched
     xTaskCreate(&tp_read_task, "touch_pad_read_task", 2048, NULL, 5, NULL);
 }
+
+void green_led(int state)
+{
+    gpio_set_level(BLINK_GPIO0, state);
+}
+
+void red_led(int state)
+{
+    gpio_set_level(BLINK_GPIO1, state);
+}

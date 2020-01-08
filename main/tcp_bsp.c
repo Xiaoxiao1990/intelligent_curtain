@@ -14,8 +14,17 @@
 #include "cJSON.h"
 #include "esp_types.h"
 #include "config.h"
+#include "touch_pad.h"
 
 #define DEVICE_ID       "LY0123456789"
+
+typedef enum {
+    SET_OK,
+    SET_TO_READ_ONLY_FIELD,
+    SET_UNSUIABLE_VALUE,
+    INVALID_VALUE,
+    SET_PARAM_PARSE_FAIL
+} SetErrorCode_TypeDef;
 
 //socket
 static int server_socket = 0;
@@ -68,7 +77,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
 
 #define CONSTANT_STRING_DEFINE(s)  static const char * s##_CONST_STRING = #s
 
-//CONSTANT_STRING_DEFINE(message);
+CONSTANT_STRING_DEFINE(message);
 //CONSTANT_STRING_DEFINE(error);
 CONSTANT_STRING_DEFINE(code);
 CONSTANT_STRING_DEFINE(device_id);
@@ -89,6 +98,94 @@ CONSTANT_STRING_DEFINE(server_port);
 CONSTANT_STRING_DEFINE(optical_work_time);
 CONSTANT_STRING_DEFINE(curtain_work_time);
 CONSTANT_STRING_DEFINE(curtain_repeater);
+CONSTANT_STRING_DEFINE(command);
+CONSTANT_STRING_DEFINE(args);
+CONSTANT_STRING_DEFINE(all);
+
+typedef void cmd_func_t(void *);
+
+typedef struct {
+    char cmd[20];
+    void *args;
+    cmd_func_t *func;
+} CMD_TypeDef;
+
+#define CMD_COUNT   3
+static void say_hello(void *args);
+static void curtain(void *args);
+static void led_control(void *args);
+
+static CMD_TypeDef CommandTbl[CMD_COUNT] = {
+        {.cmd = "say_hello", .func = say_hello},
+        {.cmd = "curtain", .func = curtain},
+        {.cmd = "led_control", .func = led_control}
+};
+
+static void say_hello(void *args)
+{
+    cJSON *root = (cJSON*)args;
+    cJSON *rsp_msg = cJSON_CreateObject();
+
+    char *json_printed = NULL;
+
+    if (root == NULL) {
+        ESP_LOGE(TAG, "No json data input");
+        return;
+    }
+
+    json_printed = cJSON_Print(root);
+    ESP_LOGD(TAG, "Server Msg:\n%s", json_printed);
+    if (json_printed)
+        free(json_printed);
+
+    cJSON_AddStringToObject(rsp_msg, device_id_CONST_STRING, DEVICE_ID);
+    char buf[1024] = {0};
+    snprintf(buf, 1023, "Hello, %s!", cJSON_GetObjectItem(root, args_CONST_STRING)->valuestring);
+    cJSON_AddStringToObject(rsp_msg, message_CONST_STRING, buf);
+
+    json_printed = cJSON_Print(rsp_msg);
+    ESP_LOGI(TAG, "RSP_MSG: %s", json_printed);
+    send(*((int *)CommandTbl[0].args), json_printed, strlen(json_printed), 0);
+    if (json_printed)
+        free(json_printed);
+    cJSON_free(rsp_msg);
+
+    cJSON_free(rsp_msg);
+}
+
+static void curtain(void *args)
+{
+    if (strcmp(args, "on") == 0) {
+        green_led(0);
+    } else if (strcmp(args, "off") == 0) {
+        green_led(1);
+    } else {
+        ESP_LOGE(TAG, "Illegal args");
+    }
+}
+
+static void led_control(void *args)
+{
+    if (strcmp(args, "on") == 0) {
+        red_led(0);
+    } else if (strcmp(args, "off") == 0) {
+        red_led(1);
+    } else {
+        ESP_LOGE(TAG, "Illegal args");
+    }
+}
+
+static void command_dispatch(int socket, cJSON *command)
+{
+    char *cmd = cJSON_GetStringValue(command);
+
+    for (int i = 0; i < CMD_COUNT; ++i) {
+        if (strcmp(cmd, CommandTbl[i].cmd) == 0) {
+            CommandTbl[i].args = (void *)&socket;
+            CommandTbl[i].func(cJSON_GetObjectItem(command, args_CONST_STRING)->valuestring);
+        }
+    }
+}
 
 static void message_dispatch(int socket, cJSON *root)
 {
@@ -132,18 +229,75 @@ static void message_dispatch(int socket, cJSON *root)
     }
 
     char *message_type = cJSON_GetStringValue(cJSON_GetObjectItem(root, message_type_CONST_STRING));
-    char *device_params;
+
     if (strcmp(message_type, action_CONST_STRING) == 0) {
-        ESP_LOGE(TAG, "Actions do not implement so far.");
-        cJSON_AddStringToObject(rsp_msg, "result", "Actions do not implement so far.");
-        cJSON_AddNumberToObject(rsp_msg, "code", -1);
+        if (!cJSON_HasObjectItem(root, command_CONST_STRING)) {
+            ESP_LOGE(TAG, "No %s field.", command_CONST_STRING);
+            cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Command required.");
+            cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+            json_printed = cJSON_Print(rsp_msg);
+            send(socket, json_printed, strlen(json_printed), 0);
+            if (json_printed)
+                free(json_printed);
+            cJSON_free(rsp_msg);
+            return;
+        }
+
+        char *cmd = cJSON_GetObjectItem(root, command_CONST_STRING)->valuestring;
+        cJSON_AddStringToObject(rsp_msg, device_id_CONST_STRING, DEVICE_ID);
+        if (strcmp(cmd, CommandTbl[0].cmd) == 0) {
+            if (cJSON_HasObjectItem(root, args_CONST_STRING)) {
+                char buf[1023] = {0};
+                snprintf(buf, 1023, "Hello, %s", cJSON_GetObjectItem(root, args_CONST_STRING)->valuestring);
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "success");
+                cJSON_AddStringToObject(rsp_msg, message_CONST_STRING, buf);
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, 0);
+            } else {
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "fail");
+                cJSON_AddStringToObject(rsp_msg, message_CONST_STRING, "args required");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+            }
+        } else if (strcmp(cmd, CommandTbl[1].cmd) == 0) {
+            if (cJSON_HasObjectItem(root, args_CONST_STRING)) {
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "success");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, 0);
+                char *args = cJSON_GetObjectItem(root, args_CONST_STRING)->valuestring;
+                if (strcmp(args, "on") == 0) {
+                    red_led(0);
+                } else if (strcmp(args, "off") == 0) {
+                    red_led(1);
+                }
+            } else {
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "fail");
+                cJSON_AddStringToObject(rsp_msg, message_CONST_STRING, "args required");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+            }
+        } else if (strcmp(cmd, CommandTbl[2].cmd) == 0) {
+            if (cJSON_HasObjectItem(root, args_CONST_STRING)) {
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "success");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, 0);
+                char *args = cJSON_GetObjectItem(root, args_CONST_STRING)->valuestring;
+                if (strcmp(args, "on") == 0) {
+                    green_led(0);
+                } else if (strcmp(args, "off") == 0) {
+                    green_led(1);
+                }
+            } else {
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "fail");
+                cJSON_AddStringToObject(rsp_msg, message_CONST_STRING, "args required");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+            }
+        } else {
+            cJSON_AddStringToObject(rsp_msg, message_CONST_STRING, "Un support command.");
+        }
+
         json_printed = cJSON_Print(rsp_msg);
         send(socket, json_printed, strlen(json_printed), 0);
         if (json_printed)
             free(json_printed);
         cJSON_free(rsp_msg);
-        return;
     } else if (strcmp(message_type, get_CONST_STRING) == 0) {
+        char *device_params;
         if (!cJSON_HasObjectItem(root, device_params_CONST_STRING)) {
             ESP_LOGE(TAG, "No device_params field.");
             cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Device params is required.");
@@ -161,23 +315,27 @@ static void message_dispatch(int socket, cJSON *root)
         cJSON_AddStringToObject(rsp_msg, message_type_CONST_STRING, update_CONST_STRING);
         cJSON_AddObjectToObject(rsp_msg, device_params_CONST_STRING);
         cJSON *rsp_params = cJSON_GetObjectItem(rsp_msg, device_params_CONST_STRING);
-        if (strstr(device_params, "all") != NULL) {
+        if (strstr(device_params, all_CONST_STRING) != NULL) {
             cJSON_AddNumberToObject(rsp_params, battery_CONST_STRING, Curtain.device_params.battery);
-            cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING, Curtain.device_params.optical_sensor_status);
+            cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING,
+                                    Curtain.device_params.optical_sensor_status);
             cJSON_AddNumberToObject(rsp_params, lumen_CONST_STRING, Curtain.device_params.lumen);
             cJSON_AddNumberToObject(rsp_params, curtain_position_CONST_STRING, Curtain.device_params.curtain_position);
             cJSON_AddStringToObject(rsp_params, server_ip_CONST_STRING, Curtain.device_params.server_address.ip);
             cJSON_AddNumberToObject(rsp_params, server_port_CONST_STRING, Curtain.device_params.server_address.port);
-            cJSON_AddItemToObject(rsp_params, optical_work_time_CONST_STRING, cJSON_CreateIntArray(Curtain.device_params.optical_work_time, 6));
-            cJSON_AddItemToObject(rsp_params, curtain_work_time_CONST_STRING, cJSON_CreateIntArray(Curtain.device_params.curtain_work_time, 6));
+            cJSON_AddItemToObject(rsp_params, optical_work_time_CONST_STRING,
+                                  cJSON_CreateIntArray(Curtain.device_params.optical_work_time, 6));
+            cJSON_AddItemToObject(rsp_params, curtain_work_time_CONST_STRING,
+                                  cJSON_CreateIntArray(Curtain.device_params.curtain_work_time, 6));
             cJSON_AddNumberToObject(rsp_params, curtain_repeater_CONST_STRING, Curtain.device_params.curtain_repeater);
         } else {
             if (strstr(device_params, battery_CONST_STRING) != NULL) {
                 cJSON_AddNumberToObject(rsp_params, battery_CONST_STRING, Curtain.device_params.battery);
             }
 
-            if (strstr(device_params,optical_sensor_status_CONST_STRING) != NULL) {
-                cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING, Curtain.device_params.optical_sensor_status);
+            if (strstr(device_params, optical_sensor_status_CONST_STRING) != NULL) {
+                cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING,
+                                        Curtain.device_params.optical_sensor_status);
             }
 
             if (strstr(device_params, lumen_CONST_STRING) != NULL) {
@@ -185,7 +343,8 @@ static void message_dispatch(int socket, cJSON *root)
             }
 
             if (strstr(device_params, curtain_position_CONST_STRING) != NULL) {
-                cJSON_AddNumberToObject(rsp_params, curtain_position_CONST_STRING, Curtain.device_params.curtain_position);
+                cJSON_AddNumberToObject(rsp_params, curtain_position_CONST_STRING,
+                                        Curtain.device_params.curtain_position);
             }
 
             if (strstr(device_params, server_ip_CONST_STRING) != NULL) {
@@ -197,15 +356,18 @@ static void message_dispatch(int socket, cJSON *root)
             }
 
             if (strstr(device_params, optical_work_time_CONST_STRING) != NULL) {
-                cJSON_AddItemToObject(rsp_params, optical_work_time_CONST_STRING, cJSON_CreateIntArray(Curtain.device_params.optical_work_time, 6));
+                cJSON_AddItemToObject(rsp_params, optical_work_time_CONST_STRING,
+                                      cJSON_CreateIntArray(Curtain.device_params.optical_work_time, 6));
             }
 
             if (strstr(device_params, curtain_work_time_CONST_STRING) != NULL) {
-                cJSON_AddItemToObject(rsp_params, curtain_work_time_CONST_STRING, cJSON_CreateIntArray(Curtain.device_params.curtain_work_time, 6));
+                cJSON_AddItemToObject(rsp_params, curtain_work_time_CONST_STRING,
+                                      cJSON_CreateIntArray(Curtain.device_params.curtain_work_time, 6));
             }
 
             if (strstr(device_params, curtain_repeater_CONST_STRING) != NULL) {
-                cJSON_AddNumberToObject(rsp_params, curtain_repeater_CONST_STRING, Curtain.device_params.curtain_repeater);
+                cJSON_AddNumberToObject(rsp_params, curtain_repeater_CONST_STRING,
+                                        Curtain.device_params.curtain_repeater);
             }
         }
         cJSON_AddNumberToObject(rsp_msg, report_time_CONST_STRING, esp_timer_get_time());
@@ -229,43 +391,172 @@ static void message_dispatch(int socket, cJSON *root)
             return;
         }
 
-        device_params = cJSON_GetStringValue(cJSON_GetObjectItem(root, "device_params"));
-        cJSON *rsp_params = cJSON_GetObjectItem(rsp_msg, "device_status");
-        if (strcmp(device_params, "all") == 0) {
-            cJSON_AddNumberToObject(rsp_params, "battery", 80);
-            cJSON_AddNumberToObject(rsp_params, "optical_sensor_status", 0);
-            cJSON_AddNumberToObject(rsp_params, "lumen", 50);
-            cJSON_AddNumberToObject(rsp_params, "curtain_position", 50);
-        } else {
-            cJSON *device_params_item = cJSON_GetObjectItem(root, "device_params");
-            if (cJSON_HasObjectItem(device_params_item, "battery")) {
-                cJSON_AddNumberToObject(rsp_params, "battery", 80);
-            }
+        cJSON *params = cJSON_GetObjectItem(root, device_params_CONST_STRING);
+        cJSON *item;
+        SetErrorCode_TypeDef error_code = SET_PARAM_PARSE_FAIL;
+        int data;
 
-            if (cJSON_HasObjectItem(device_params_item, "optical_sensor_status")) {
-                cJSON_AddNumberToObject(rsp_params, "optical_sensor_status", 1);
-            }
-
-            if (cJSON_HasObjectItem(device_params_item, "lumen")) {
-                cJSON_AddNumberToObject(rsp_params, "lumen", 50);
-            }
-
-            if (cJSON_HasObjectItem(device_params_item, "curtain_position")) {
-                cJSON_AddNumberToObject(rsp_params, "curtain_position", 50);
-            }
+        if (cJSON_HasObjectItem(params, battery_CONST_STRING) || cJSON_HasObjectItem(params, lumen_CONST_STRING) ||
+            cJSON_HasObjectItem(params, server_ip_CONST_STRING) || cJSON_HasObjectItem(params, server_port_CONST_STRING)) {
+            error_code = SET_TO_READ_ONLY_FIELD;
+            goto error_process;
         }
-        cJSON_AddNumberToObject(rsp_msg, "report_time", esp_timer_get_time());
 
+        if (cJSON_HasObjectItem(params, optical_sensor_status_CONST_STRING)) {
+            item = cJSON_GetObjectItem(params, optical_sensor_status_CONST_STRING);
+            if (item->type != cJSON_Number) {
+                error_code = SET_UNSUIABLE_VALUE;
+                goto error_process;
+            }
+
+            data = item->valueint;
+
+            if (data > 1) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            Curtain.device_params.optical_sensor_status = (uint8_t)data;
+            error_code = SET_OK;
+        }
+
+        if (cJSON_HasObjectItem(params, curtain_position_CONST_STRING)) {
+            item = cJSON_GetObjectItem(params, optical_sensor_status_CONST_STRING);
+            if (item->type != cJSON_Number) {
+                error_code = SET_UNSUIABLE_VALUE;
+                goto error_process;
+            }
+
+            data = item->valueint;
+            if (data > 100) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            Curtain.device_params.curtain_position = (uint8_t)data;
+            error_code = SET_OK;
+        }
+
+        if (cJSON_HasObjectItem(params, optical_work_time_CONST_STRING)) {
+            item = cJSON_GetObjectItem(params, optical_sensor_status_CONST_STRING);
+            if (item->type != cJSON_Array) {
+                error_code = SET_UNSUIABLE_VALUE;
+                goto error_process;
+            }
+
+            cJSON *time = item;
+            if (cJSON_GetArraySize(time) != 6) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            if (cJSON_GetArrayItem(time, 0)->valueint > 59 || cJSON_GetArrayItem(time, 1)->valueint > 59 ||
+                cJSON_GetArrayItem(time, 3)->valueint > 59 || cJSON_GetArrayItem(time, 4)->valueint > 59) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            if (cJSON_GetArrayItem(time, 2)->valueint > 23 || cJSON_GetArrayItem(time, 5)->valueint > 23) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            cJSON *element;
+            uint8_t i = 0;
+            cJSON_ArrayForEach(element, time) {
+                Curtain.device_params.optical_work_time[i] = element->valueint;
+                ++i;
+            }
+
+            error_code = SET_OK;
+        }
+
+        if (cJSON_HasObjectItem(params, curtain_work_time_CONST_STRING)) {
+            item = cJSON_GetObjectItem(params, optical_sensor_status_CONST_STRING);
+            if (item->type != cJSON_Array) {
+                error_code = SET_UNSUIABLE_VALUE;
+                goto error_process;
+            }
+
+            cJSON *time = item;
+            if (cJSON_GetArraySize(time) != 6) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            if (cJSON_GetArrayItem(time, 0)->valueint > 59 || cJSON_GetArrayItem(time, 1)->valueint > 59 ||
+                cJSON_GetArrayItem(time, 3)->valueint > 59 || cJSON_GetArrayItem(time, 4)->valueint > 59) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            if (cJSON_GetArrayItem(time, 2)->valueint > 23 || cJSON_GetArrayItem(time, 5)->valueint > 23) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            cJSON *element;
+            uint8_t i = 0;
+            cJSON_ArrayForEach(element, time) {
+                Curtain.device_params.curtain_work_time[i] = element->valueint;
+                ++i;
+            }
+
+            error_code = SET_OK;
+        }
+
+        if (cJSON_HasObjectItem(params, curtain_repeater_CONST_STRING)) {
+            item = cJSON_GetObjectItem(params, optical_sensor_status_CONST_STRING);
+            if (item->type != cJSON_Number) {
+                error_code = SET_UNSUIABLE_VALUE;
+                goto error_process;
+            }
+            data = item->valueint;
+            if (data > 0x7F) {
+                error_code = INVALID_VALUE;
+                goto error_process;
+            }
+
+            Curtain.device_params.curtain_repeater = (uint8_t)data;
+            error_code = SET_OK;
+        }
+
+    error_process:
+        switch (error_code) {
+            case SET_OK:
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "OK");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, 0);
+                // TODO save to flash
+                params_save();
+                break;
+            case SET_TO_READ_ONLY_FIELD:
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Can not set read-only field.");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+                break;
+            case SET_UNSUIABLE_VALUE:
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Incompatible value types");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+                break;
+            case INVALID_VALUE:
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Invalid value.");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+                break;
+            case SET_PARAM_PARSE_FAIL:
+                cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Cannot parse any params.");
+                cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
+                break;
+        }
         json_printed = cJSON_Print(rsp_msg);
         send(socket, json_printed, strlen(json_printed), 0);
+        ESP_LOGI(TAG, "Report message:\n%s", json_printed);
         if (json_printed)
             free(json_printed);
         cJSON_free(rsp_msg);
     } else {
         // Undefined operates
         ESP_LOGE(TAG, "Illegal operates.");
-        cJSON_AddStringToObject(rsp_msg, "result", "Illegal operates.");
-        cJSON_AddNumberToObject(rsp_msg, "code", -1);
+        cJSON_AddStringToObject(rsp_msg, result_CONST_STRING, "Illegal operates.");
+        cJSON_AddNumberToObject(rsp_msg, code_CONST_STRING, -1);
         json_printed = cJSON_Print(rsp_msg);
         send(socket, json_printed, strlen(json_printed), 0);
         if (json_printed)
@@ -291,13 +582,16 @@ void recv_data(void *pvParameters) {
     cJSON_AddObjectToObject(rsp_msg, device_params_CONST_STRING);
     cJSON *rsp_params = cJSON_GetObjectItem(rsp_msg, device_params_CONST_STRING);
     cJSON_AddNumberToObject(rsp_params, battery_CONST_STRING, Curtain.device_params.battery);
-    cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING, Curtain.device_params.optical_sensor_status);
+    cJSON_AddNumberToObject(rsp_params, optical_sensor_status_CONST_STRING,
+                            Curtain.device_params.optical_sensor_status);
     cJSON_AddNumberToObject(rsp_params, lumen_CONST_STRING, Curtain.device_params.lumen);
     cJSON_AddNumberToObject(rsp_params, curtain_position_CONST_STRING, Curtain.device_params.curtain_position);
     cJSON_AddStringToObject(rsp_params, server_ip_CONST_STRING, Curtain.device_params.server_address.ip);
     cJSON_AddNumberToObject(rsp_params, server_port_CONST_STRING, Curtain.device_params.server_address.port);
-    cJSON_AddItemToObject(rsp_params, optical_work_time_CONST_STRING, cJSON_CreateIntArray(Curtain.device_params.optical_work_time, 6));
-    cJSON_AddItemToObject(rsp_params, curtain_work_time_CONST_STRING, cJSON_CreateIntArray(Curtain.device_params.curtain_work_time, 6));
+    cJSON_AddItemToObject(rsp_params, optical_work_time_CONST_STRING,
+                          cJSON_CreateIntArray(Curtain.device_params.optical_work_time, 6));
+    cJSON_AddItemToObject(rsp_params, curtain_work_time_CONST_STRING,
+                          cJSON_CreateIntArray(Curtain.device_params.curtain_work_time, 6));
     cJSON_AddNumberToObject(rsp_params, curtain_repeater_CONST_STRING, Curtain.device_params.curtain_repeater);
 
     cJSON_AddNumberToObject(rsp_msg, report_time_CONST_STRING, esp_timer_get_time());
@@ -395,7 +689,7 @@ esp_err_t create_tcp_client() {
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(TCP_PORT);
     server_addr.sin_addr.s_addr = inet_addr(TCP_SERVER_ADRESS);
-    ESP_LOGI(TAG, "connectting server...");
+    ESP_LOGI(TAG, "connecting server...");
 
     if (connect(connect_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
         show_socket_error_reason("client connect", connect_socket);
