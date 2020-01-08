@@ -75,9 +75,10 @@ static void tp_set_thresholds(void)
  */
 static void tp_read_task(void *pvParameter)
 {
-    int time_cnt = 0;
+    int press_time_cnt = 0, release_time_cnt = 0;
+    uint8_t state = 0;
     int led_cnt = 0;
-    bool reconfiguartaion_network = false;
+
     //interrupt mode, enable touch interrupt
     touch_pad_intr_enable();
     gpio_set_level(BLINK_GPIO0, 1);
@@ -121,36 +122,38 @@ static void tp_read_task(void *pvParameter)
 
         if (s_pad_activated == true) {
             s_pad_activated = false;
-            //ESP_LOGI(TAG, "T%d activated!", TOUCH_PAD);
             // Wait a while for the pad being released
-            vTaskDelay(20 / portTICK_PERIOD_MS);
-            // Clear information on pad activation
-            time_cnt++;
+            //vTaskDelay(20 / portTICK_PERIOD_MS);
+            press_time_cnt++;
+            release_time_cnt = 0;
         } else {
-            time_cnt = 0;
-            if (reconfiguartaion_network) {
-                reconfiguartaion_network = false;
-                params_save();
-                esp_restart();
-            }
+            release_time_cnt++;
+            press_time_cnt = 0;
         }
 
-        vTaskDelay(20 / portTICK_PERIOD_MS);
-
-        //ESP_LOGI(TAG, "Time cnt: %d", time_cnt);
-
-        if (time_cnt > 300) {
-            time_cnt = 0;
-            reconfiguartaion_network = true;
-            ESP_LOGE(TAG, "TimeOut: %d", time_cnt);
-            network_state = NETWORK_FIRST_CONFIG;
-            Curtain.is_wifi_config = false;
+        switch (state) {
+            case 0:
+                if (press_time_cnt > 120) {
+                    state++;
+                    release_time_cnt = 0;
+                    ESP_LOGI(TAG, "It's time to re-config WiFi...");
+                }
+                break;
+            case 1:
+                if (release_time_cnt > 2) {
+                    ESP_LOGI(TAG, "Re-config WiFi now...");
+                    network_state = NETWORK_FIRST_CONFIG;
+                    Curtain.is_wifi_config = false;
+                    params_save();
+                    esp_restart();
+                }
+                break;
+            default:
+                state = 0;
+                break;
         }
-//
-//        if (cnt++ % 500 == 0) {
-//            if (++network_state > NETWORK_ERROR)
-//                network_state = NETWORK_DO_NOT_CONFIG;
-//        }
+
+        vTaskDelay(40 / portTICK_PERIOD_MS);
     }
 }
 
@@ -169,15 +172,6 @@ static void tp_rtc_intr(void * arg)
     if ((pad_intr >> TOUCH_PAD) & 0x01) {
         s_pad_activated = true;
     }
-}
-
-/*
- * Before reading touch pad, we need to initialize the RTC IO.
- */
-static void tp_touch_pad_init()
-{
-    //init RTC IO and mode for touch pad.
-    touch_pad_config(TOUCH_PAD, TOUCH_THRESH_NO_USE);
 }
 
 void touch_pad_initial(tp_callback_func_t func)
@@ -208,7 +202,8 @@ void touch_pad_unit_test(void)
     // the high reference valtage will be 2.7V - 1V = 1.7V, The low reference voltage will be 0.5V.
     touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
     // Init touch pad IO
-    tp_touch_pad_init();
+    //init RTC IO and mode for touch pad.
+    touch_pad_config(TOUCH_PAD, TOUCH_THRESH_NO_USE);
     // Initialize and start a software filter to detect slight change of capacitance.
     touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
     // Set thresh hold
