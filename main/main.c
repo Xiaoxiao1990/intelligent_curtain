@@ -18,15 +18,16 @@
 #include "network_config.h"
 #include "config.h"
 #include "touch_pad.h"
+#include "ble_gatt_server.h"
 
 void app_main(void)
 {
     //optical_sensor_init();
-    config_unit_test();
-    network_config_unit_test();
+    //config_unit_test();
+    //network_config_unit_test();
 
-    touch_pad_unit_test();
-
+    //touch_pad_unit_test();
+    ble_gatt_server_unit_test();
     //while(1) {
         //opitcal_unit_test();
     //}
