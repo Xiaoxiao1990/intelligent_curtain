@@ -1,7 +1,11 @@
 <component name="ProjectDictionaryState">
   <dictionary name="root">
     <words>
+      <w>bluedroid</w>
+      <w>bluetooth</w>
+      <w>gatts</w>
       <w>ssid</w>
+      <w>uart</w>
     </words>
   </dictionary>
 </component>

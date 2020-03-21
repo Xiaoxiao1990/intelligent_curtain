@@ -21,6 +21,7 @@
 #include <string.h>
 #include <esp_bt_defs.h>
 #include <esp_gatts_api.h>
+#include <esp_gatt_defs.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -36,8 +37,9 @@
 #include "esp_gatt_common_api.h"
 
 #include "sdkconfig.h"
+#include "config.h"
 
-#define GATTS_TAG "GATTS_DEMO"
+#define GATTS_TAG "GATTS_BLE"
 
 ///Declare the static function
 static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
@@ -180,8 +182,8 @@ static void gatts_profile_init(void)
     gl_profile_tab.chars[0].char_uuid.len = ESP_UUID_LEN_128;
     memcpy(gl_profile_tab.chars[0].char_uuid.uuid.uuid128 , adv_service_uuid128, ESP_UUID_LEN_128);
     gl_profile_tab.chars[0].char_uuid.uuid.uuid128[12] = 0x02;
-    gl_profile_tab.chars[0].perm = ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
-    gl_profile_tab.chars[0].property = ESP_GATT_CHAR_PROP_BIT_READ | ESP_GATT_CHAR_PROP_BIT_WRITE | ESP_GATT_CHAR_PROP_BIT_NOTIFY;
+    gl_profile_tab.chars[0].perm = ESP_GATT_PERM_WRITE;
+    gl_profile_tab.chars[0].property = ESP_GATT_CHAR_PROP_BIT_WRITE;
     // desc 1
     gl_profile_tab.chars[0].descr_uuid.len = ESP_UUID_LEN_16;
     gl_profile_tab.chars[0].descr_uuid.uuid.uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG;
@@ -190,7 +192,7 @@ static void gatts_profile_init(void)
     gl_profile_tab.chars[1].char_uuid.len = ESP_UUID_LEN_128;
     memcpy(gl_profile_tab.chars[1].char_uuid.uuid.uuid128 , adv_service_uuid128, ESP_UUID_LEN_128);
     gl_profile_tab.chars[1].char_uuid.uuid.uuid128[12] = 0x03;
-    gl_profile_tab.chars[1].perm = 0x00;//ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE;
+    gl_profile_tab.chars[1].perm = ESP_GATT_PERM_READ;
     gl_profile_tab.chars[1].property = ESP_GATT_CHAR_PROP_BIT_NOTIFY;
     // desc 2
     gl_profile_tab.chars[1].descr_uuid.len = ESP_UUID_LEN_16;
@@ -321,10 +323,10 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
         ESP_LOGI(GATTS_TAG, "GATT_WRITE_EVT, value len %d, value :", param->write.len);
         esp_log_buffer_hex(GATTS_TAG, param->write.value, param->write.len);
 
-        if (gl_profile_tab.chars[0].descr_handle == param->write.handle && param->write.len == 2) {
+        if (gl_profile_tab.chars[1].descr_handle == param->write.handle && param->write.len == 2) {
             uint16_t descr_value = param->write.value[1] << 8 | param->write.value[0];
             if (descr_value == 0x0001) {
-                if (gl_profile_tab.chars[0].property & ESP_GATT_CHAR_PROP_BIT_NOTIFY) {
+                if (gl_profile_tab.chars[1].property & ESP_GATT_CHAR_PROP_BIT_NOTIFY) {
                     ESP_LOGI(GATTS_TAG, "notify enable");
                     uint8_t notify_data[15];
                     for (int i = 0; i < sizeof(notify_data); ++i) {
@@ -335,14 +337,14 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
                                                 sizeof(notify_data), notify_data, false);
                 }
             } else if (descr_value == 0x0002) {
-                if (gl_profile_tab.chars[0].property & ESP_GATT_CHAR_PROP_BIT_INDICATE) {
+                if (gl_profile_tab.chars[1].property & ESP_GATT_CHAR_PROP_BIT_INDICATE) {
                     ESP_LOGI(GATTS_TAG, "indicate enable");
                     uint8_t indicate_data[15];
                     for (int i = 0; i < sizeof(indicate_data); ++i) {
                         indicate_data[i] = i % 0xff;
                     }
                     //the size of indicate_data[] need less than MTU size
-                    esp_ble_gatts_send_indicate(gatts_if, param->write.conn_id, gl_profile_tab.chars[0].char_handle,
+                    esp_ble_gatts_send_indicate(gatts_if, param->write.conn_id, gl_profile_tab.chars[1].char_handle,
                                                 sizeof(indicate_data), indicate_data, true);
                 }
             } else if (descr_value == 0x0000) {
@@ -351,7 +353,7 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
                 ESP_LOGE(GATTS_TAG, "unknown descr value");
                 esp_log_buffer_hex(GATTS_TAG, param->write.value, param->write.len);
             }
-        } else if (gl_profile_tab.chars[0].descr_handle == param->write.handle && param->write.len < 2) {
+        } else if (gl_profile_tab.chars[1].descr_handle == param->write.handle && param->write.len < 2) {
             ESP_LOGE(GATTS_TAG, "Illegal format");
         } else {
             // Normal Setting Data
@@ -359,36 +361,40 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
             if (data[0] != 0x55) {
                 ESP_LOGE(GATTS_TAG, "Illegal Header");
             } else {
+
                 switch (data[1]) {
-                    case 0x00:
+                    case 0x00:  // system command
                         if (data[2] == 0x01) {
                             ESP_LOGI(GATTS_TAG, "Start adjust curtain position");
+                            //TODO
                         } else if (data[2] == 0x02) {
                             ESP_LOGI(GATTS_TAG, "Reboot device");
+                            //TODO
                         } else if (data[2] == 0x03) {
                             ESP_LOGI(GATTS_TAG, "Set Server IP & Port");
+
                         } else if (data[2] == 0x04) {
                             ESP_LOGI(GATTS_TAG, "Read Server IP & Port");
                         } else {
                             ESP_LOGE(GATTS_TAG, "Undefined operation");
                         }
                         break;
-                    case 0x01:
+                    case 0x01:  // read
                         if (data[2] == 0x01) {
                             ESP_LOGI(GATTS_TAG, "Read device info");
                         } else if (data[2] == 0x03) {
-                            ESP_LOGI(GATTS_TAG, "Read swither time");
+                            ESP_LOGI(GATTS_TAG, "Read switcher time");
                         } else {
                             ESP_LOGE(GATTS_TAG, "Undefined operation");
                         }
                         break;
-                    case 0x02:
+                    case 0x02: // set
                         if (data[2] == 0x01) {
                             ESP_LOGI(GATTS_TAG, "Set time");
                         } else if (data[2] == 0x02) {
                             ESP_LOGI(GATTS_TAG, "Set light work mode");
                         } else if (data[2] == 0x03) {
-                            ESP_LOGI(GATTS_TAG, "Set swither time");
+                            ESP_LOGI(GATTS_TAG, "Set switcher time");
                         } else if (data[2] == 0x04) {
                             ESP_LOGI(GATTS_TAG, "Set curtain ratio");
                         } else if (data[2] == 0x05) {
@@ -400,18 +406,46 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
                     default:
                         break;
                 }
+
+                esp_gatt_rsp_t *gatt_rsp = (esp_gatt_rsp_t *)malloc(sizeof(esp_gatt_rsp_t));
+                gatt_rsp->attr_value.len = param->write.len;
+                gatt_rsp->attr_value.handle = param->write.handle;
+                gatt_rsp->attr_value.offset = param->write.offset;
+                gatt_rsp->attr_value.auth_req = ESP_GATT_AUTH_REQ_NONE;
+                memcpy(gatt_rsp->attr_value.value, param->write.value, param->write.len);
+                gatt_rsp->attr_value.value[0] = 10;
+                esp_err_t response_err = esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, NULL);
+
+                if (response_err != ESP_OK){
+                    ESP_LOGE(GATTS_TAG, "Send response error");
+                }
+
+                response_err = esp_ble_gatts_send_indicate(gatts_if, param->read.conn_id, param->read.handle, gatt_rsp->attr_value.len, gatt_rsp->attr_value.value,
+                                             false);
+                if (response_err != ESP_OK){
+                    ESP_LOGE(GATTS_TAG, "Send indicate error");
+                }
+
+                free(gatt_rsp);
+                if (status != ESP_GATT_OK){
+                    return;
+                }
+
+
             }
         }
     }
     ///////////////////
 
-    if (param->write.need_rsp){
-        if (param->write.is_prep){
+/*    if (param->write.need_rsp) {
+        ESP_LOGI(GATTS_TAG, "need response message");
+        if (param->write.is_prep) {
+            ESP_LOGI(GATTS_TAG, "write response message is prepared");
             if (prepare_write_env->prepare_buf == NULL) {
                 prepare_write_env->prepare_buf = (uint8_t *)malloc(PREPARE_BUF_MAX_SIZE*sizeof(uint8_t));
                 prepare_write_env->prepare_len = 0;
                 if (prepare_write_env->prepare_buf == NULL) {
-                    ESP_LOGE(GATTS_TAG, "Gatt_server prep no mem\n");
+                    ESP_LOGE(GATTS_TAG, "Gatt_server prep no mem");
                     status = ESP_GATT_NO_RESOURCES;
                 }
             } else {
@@ -430,7 +464,7 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
             memcpy(gatt_rsp->attr_value.value, param->write.value, param->write.len);
             esp_err_t response_err = esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, gatt_rsp);
             if (response_err != ESP_OK){
-                ESP_LOGE(GATTS_TAG, "Send response error\n");
+                ESP_LOGE(GATTS_TAG, "Send response error");
             }
             free(gatt_rsp);
             if (status != ESP_GATT_OK){
@@ -440,18 +474,20 @@ static void uart_profile_parse(esp_gatt_if_t gatts_if, prepare_type_env_t *prepa
                    param->write.value,
                    param->write.len);
             prepare_write_env->prepare_len += param->write.len;
-
-        }else{
+        } else {
+            ESP_LOGI(GATTS_TAG, "write response message isn't prepared");
             esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, NULL);
         }
-    }
+    } else {
+        ESP_LOGI(GATTS_TAG, "needn't response message");
+    }*/
 }
 
 static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param) {
     static uint8_t char_cnt = 0;
     switch (event) {
         case ESP_GATTS_REG_EVT:
-            ESP_LOGI(GATTS_TAG, "REGISTER_APP_EVT, status %d, app_id %d\n", param->reg.status, param->reg.app_id);
+            ESP_LOGI(GATTS_TAG, "REGISTER_APP_EVT, status %d, app_id %d", param->reg.status, param->reg.app_id);
             esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(TEST_DEVICE_NAME);
             if (set_dev_name_ret){
                 ESP_LOGE(GATTS_TAG, "set device name failed, error code = %x", set_dev_name_ret);
@@ -594,9 +630,9 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
             ESP_LOGI(GATTS_TAG, "SERVICE_START_EVT, status %d, service_handle %d\n",
                      param->start.status, param->start.service_handle);
 
-            esp_err_t add_char_ret = esp_ble_gatts_add_char(gl_profile_tab.service_handle, &gl_profile_tab.chars[0].char_uuid,
-                                                            gl_profile_tab.chars[0].perm,
-                                                            gl_profile_tab.chars[0].property,
+            esp_err_t add_char_ret = esp_ble_gatts_add_char(gl_profile_tab.service_handle, &gl_profile_tab.chars[char_cnt].char_uuid,
+                                                            gl_profile_tab.chars[char_cnt].perm,
+                                                            gl_profile_tab.chars[char_cnt].property,
                                                             &gatts_demo_char1_val, NULL);
             if (add_char_ret){
                 ESP_LOGE(GATTS_TAG, "add char failed, error code =%x", add_char_ret);

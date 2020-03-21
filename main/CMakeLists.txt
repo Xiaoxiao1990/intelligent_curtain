@@ -6,7 +6,8 @@ set(src_files
         tcp_bsp.c
         config.c
         touch_pad.c
-        ble_gatt_server.c)
+        ble_gatt_server.c
+        ble_spp_server.c)
 
 set(COMPONENT_SRCS ${src_files})
 set(COMPONENT_ADD_INCLUDEDIRS ".")

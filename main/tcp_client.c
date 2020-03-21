@@ -22,7 +22,7 @@ void tcp_client(void *pvParameters)
         g_rxtx_need_restart = false;
         //等待WIFI连接信号量，死等
         xEventGroupWaitBits(wifi_event_group, WIFI_CONNECTED_BIT, false, true, portMAX_DELAY);
-        ESP_LOGI(TAG, "start tcp connected");
+        ESP_LOGI(TAG, "connect server...");
 
         TaskHandle_t tx_rx_task = NULL;
 #if TCP_SERVER_CLIENT_OPTION
@@ -34,7 +34,7 @@ void tcp_client(void *pvParameters)
 #else
         //延时3S准备建立clien
         vTaskDelay(3000 / portTICK_RATE_MS);
-        ESP_LOGI(TAG, "create tcp Client");
+        ESP_LOGI(TAG, "create tcp client");
         //建立client
         int socket_ret = create_tcp_client();
 #endif

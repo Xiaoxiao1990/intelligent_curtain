@@ -31,20 +31,25 @@ typedef struct {
 
 typedef struct {
     uint8_t battery;
+    uint8_t bat_temp;
+    uint8_t bat_state;
     uint8_t optical_sensor_status;
     uint8_t lumen;
+    uint8_t lumen_gate_value;
+    uint8_t work_mode;
     uint8_t curtain_position;
     int optical_work_time[6];
     int curtain_work_time[6];
+    int curtain_timer[4][5];
     uint8_t curtain_repeater;
     IPv4_Address_TypeDef server_address;
 } Device_Params_TypeDef;
 
 typedef struct Config_TAG {
     char device_id[10];
-    Device_Params_TypeDef device_params;
     bool is_wifi_config;
     wifi_config_t wifi_config;
+    Device_Params_TypeDef device_params;
 } Curtain_TypeDef;
 
 extern Curtain_TypeDef Curtain;
