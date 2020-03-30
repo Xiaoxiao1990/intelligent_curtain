@@ -15,6 +15,7 @@
 #include "soc/mcpwm_reg.h"
 #include "soc/mcpwm_struct.h"
 #include "adc_driver.h"
+#include "config.h"
 
 #define  TAG                "MOTOR"
 
@@ -22,19 +23,7 @@
 #define GPIO_PWM0A_OUT      GPIO_NUM_18   //Set GPIO 15 as PWM0A
 #define GPIO_PWM0B_OUT      GPIO_NUM_5    //Set GPIO 16 as PWM0B
 
-typedef enum {
-    MOTOR_DISABLE,
-    MOTOR_ENABLE
-} motor_power_enable_t;
-
-typedef struct {
-    motor_state_t state;
-    direction_t direction;
-    float speed;
-    motor_power_enable_t power_enable;
-} motor_t;
-
-static motor_t motor = {
+motor_t motor = {
         .state = MOTOR_STATE_STOP,
         .direction = MOTOR_RUN_FORWARD,
         .power_enable = MOTOR_DISABLE,
@@ -147,6 +136,7 @@ void motor_run(direction_t direction, float speed)
 
 void motor_controller_task(void)
 {
+    static uint32_t width = 0;
     adc_value_t *adc_vals = &g_adcs_vals;
 
     switch (motor.state) {
@@ -204,15 +194,127 @@ void motor_controller_task(void)
                 motor.state = MOTOR_STATE_STOP;
             }
             break;
+        case MOTOR_STATE_ADJUST:
+            ESP_LOGI(TAG, "curtain start to adjust!");
+            motor.power_enable = MOTOR_ENABLE;
+            motor.speed = 70.0;
+            motor.direction = MOTOR_RUN_BACKWORK;
+
+            motor_enable(motor.power_enable);
+            motor_run(motor.direction, motor.speed);
+            motor.state = MOTOR_ADJUST_BACK_TO_ORIGIN;
+            width = 0;
+            break;
+        case MOTOR_ADJUST_BACK_TO_ORIGIN:
+            if (adc_vals->motor_cur_val > 900) {
+                ESP_LOGI(TAG, "motor back to origin....");
+                motor.power_enable = MOTOR_DISABLE;
+                motor.speed = 0;
+
+                motor_enable(motor.power_enable);
+                motor_stop();
+            }
+
+            if (adc_vals->motor_bwd_vtg < 200) {
+                ESP_LOGI(TAG, "start to count width eclipse time");
+                motor.power_enable = MOTOR_ENABLE;
+                motor.direction = MOTOR_RUN_FORWARD;
+                motor.speed = 70.0;
+                motor.state = MOTOR_STATE_FORWARD;
+
+                motor_enable(MOTOR_ENABLE);
+                motor_run(motor.direction, motor.speed);
+
+                motor.state = MOTOR_ADJUST_ARRIVE_END;
+                width = 0;
+            }
+            break;
+        case MOTOR_ADJUST_ARRIVE_END:
+            if (adc_vals->motor_cur_val > 900) {
+                ESP_LOGI(TAG, "motor arrived the end of other side.");
+                motor.power_enable = MOTOR_DISABLE;
+                motor.speed = 0;
+
+                motor_enable(motor.power_enable);
+                motor_stop();
+            }
+
+            if (adc_vals->motor_fwd_vtg < 200) {
+                Curtain.device_params.curtain_position = 100;
+                Curtain.device_params.curtain_width = width;
+
+                width = 0;
+                params_save();
+                motor.state = MOTOR_STATE_STOP;
+            } else {
+                if (width < 0xFFFFFFFF)
+                    width++;
+            }
+            break;
+        case MOTOR_POSITION_ADJUST:
+            if (Curtain.device_params.curtain_position > motor_target_position(0, 0)) {
+                motor.power_enable = MOTOR_ENABLE;
+                motor.direction = MOTOR_RUN_BACKWORK;
+                motor.speed = 70.0;
+                motor.state = MOTOR_POSITION_ADJUST_LEFT;
+
+                motor_enable(motor.power_enable);
+                motor_run(motor.direction, motor.speed);
+            }
+
+            if (Curtain.device_params.curtain_position < motor_target_position(0, 0)) {
+                motor.power_enable = MOTOR_ENABLE;
+                motor.direction = MOTOR_RUN_FORWARD;
+                motor.speed = 70.0;
+                motor.state = MOTOR_POSITION_ADJUST_RIGHT;
+
+                motor_enable(MOTOR_ENABLE);
+                motor_run(motor.direction, motor.speed);
+            }
+            break;
+        case MOTOR_POSITION_ADJUST_LEFT:
+            if (Curtain.device_params.curtain_position)
+                Curtain.device_params.curtain_position--;
+            if (Curtain.device_params.curtain_position < motor_target_position(0, 0)) {
+                ESP_LOGI(TAG, "motor arrived the target left position.");
+                motor.power_enable = MOTOR_DISABLE;
+                motor.speed = 0;
+
+                motor_enable(motor.power_enable);
+                motor_stop();
+                motor.state = MOTOR_STATE_STOP;
+            }
+            break;
+        case MOTOR_POSITION_ADJUST_RIGHT:
+            if (Curtain.device_params.curtain_position < Curtain.device_params.curtain_width)
+                Curtain.device_params.curtain_position++;
+            if (Curtain.device_params.curtain_position > motor_target_position(0, 0)) {
+                ESP_LOGI(TAG, "motor arrived the target right position.");
+                motor.power_enable = MOTOR_DISABLE;
+                motor.speed = 0;
+
+                motor_enable(motor.power_enable);
+                motor_stop();
+                motor.state = MOTOR_STATE_STOP;
+            }
+            break;
         default:
             break;
     }
 }
 
-/**
- * @brief Configure MCPWM module for brushed dc motor
- */
-static void mcpwm_example_brushed_motor_control()
+uint32_t motor_target_position(uint32_t position, bool set_or_get)
+{
+    static uint32_t target = 0;
+
+    if (set_or_get) {
+        target = position;
+    }
+
+    return target;
+}
+
+void motor_init(void)
 {
     //1. mcpwm gpio initialization
     mcpwm_example_gpio_initialize();
@@ -226,9 +328,14 @@ static void mcpwm_example_brushed_motor_control()
     pwm_config.counter_mode = MCPWM_UP_COUNTER;
     pwm_config.duty_mode = MCPWM_DUTY_MODE_0;
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config);    //Configure PWM0A & PWM0B with above settings
+}
 
-    adc_unit_init();
 
+/**
+ * @brief Configure MCPWM module for brushed dc motor
+ */
+static void mcpwm_example_brushed_motor_control()
+{
     int a = 0;
     while (1) {
         if (a++ > 20) {
@@ -248,5 +355,8 @@ static void mcpwm_example_brushed_motor_control()
 
 void motor_controller_unit_test(void)
 {
+    motor_init();
+    adc_unit_init();
+
     mcpwm_example_brushed_motor_control();
 }

@@ -119,14 +119,14 @@ void get_adcs_values(void)
 
         g_adcs_vals.battery_temp = (adc_voltage[CH_BAT_TEMP] - 500) / 10;
         g_adcs_vals.battery_voltage = (adc_voltage[CH_BAT_VOLTAGE] >> 1) * 3;
-
-        if (print_times++ > 2) {
-            print_times = 0;
-            printf("ADCs: %d, %d, %d, %d, %d, %d\n", adc_reading[0], adc_reading[1], adc_reading[2], adc_reading[3],
-                   adc_reading[4], adc_reading[5]);
-            printf("Voltages %dmV, %dmV, %dmV, %dmV, %dmV, %dmV\n", adc_voltage[0], adc_voltage[1], adc_voltage[2],
-                   adc_voltage[3], adc_voltage[4], adc_voltage[5]);
-        }
+//
+//        if (print_times++ > 2) {
+//            print_times = 0;
+//            printf("ADCs: %d, %d, %d, %d, %d, %d\n", adc_reading[0], adc_reading[1], adc_reading[2], adc_reading[3],
+//                   adc_reading[4], adc_reading[5]);
+//            printf("Voltages %dmV, %dmV, %dmV, %dmV, %dmV, %dmV\n", adc_voltage[0], adc_voltage[1], adc_voltage[2],
+//                   adc_voltage[3], adc_voltage[4], adc_voltage[5]);
+//        }
     }
 
 }

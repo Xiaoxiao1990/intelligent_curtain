@@ -16,5 +16,6 @@ typedef enum {
 extern Network_State_Typedef network_state;
 
 void network_config_unit_test(void);
+void wifi_service_start(void);
 
 #endif //INTELLIGENT_CURTAIN_NETWORK_CONFIG_H

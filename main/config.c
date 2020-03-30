@@ -122,6 +122,24 @@ esp_err_t params_init(void)
     return ESP_OK;
 }
 
+void config_init(void)
+{
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // NVS partition was truncated and needs to be erased
+        // Retry nvs_flash_init
+        ESP_LOGI(TAG, "MARK");
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    err = params_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Error (%s) reading data from NVS!\n", esp_err_to_name(err));
+    }
+}
+
 void config_unit_test(void)
 {
     esp_err_t err = nvs_flash_init();

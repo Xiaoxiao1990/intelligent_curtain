@@ -30,7 +30,7 @@ int protocol_parser(protocol_data_block_t *data)
             case 0x00:  // system command
                 if (rx[2] == 0x01) {
                     ESP_LOGI(PARSER_TAG, "Start adjust curtain position");
-                    // TODO actions
+                    motor.state = MOTOR_STATE_ADJUST;
                     // TODO done
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
@@ -146,18 +146,31 @@ int protocol_parser(protocol_data_block_t *data)
                     }
                 } else if (rx[2] == 0x04) {
                     ESP_LOGI(PARSER_TAG, "Set curtain ratio");
-                    // TODO: move curtain to target position
-                    motor_run(rx[3], 50);
+                    if (rx[3] > 100) {
+                        motor_target_position(Curtain.device_params.curtain_width, 1);
+                    } else {
+                        motor_target_position(Curtain.device_params.curtain_width * rx[3] / 100, 1);
+                    }
+                    motor.state = MOTOR_POSITION_ADJUST;
                     // TODO: done
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
                 } else if (rx[2] == 0x05) {
                     ESP_LOGI(PARSER_TAG, "Motor control");
-                    // TODO: toggle start or stop motor
-                    if (rx[3])
-                        motor_run(1, 50);
-                    else
-                        motor_run(1, 0);
+                    if (rx[3]){
+                        motor.state = MOTOR_STATE_FORWARD;
+                        motor.speed = 70.0;
+                        motor.direction = MOTOR_RUN_FORWARD;
+                        motor.power_enable = MOTOR_ENABLE;
+
+                        motor_run(motor.direction, motor.speed);
+                    } else {
+                        motor.state = MOTOR_STATE_BACKWARD;
+                        motor.speed = 70.0;
+                        motor.direction = MOTOR_RUN_BACKWORK;
+                        motor.power_enable = MOTOR_ENABLE;
+                        motor_run(motor.direction, motor.speed);
+                    }
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
                 } else {

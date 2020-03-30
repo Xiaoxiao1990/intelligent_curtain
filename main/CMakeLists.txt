@@ -9,7 +9,8 @@ set(src_files
         ble_spp_server.c
         protocol_parser.c
         motor_controller.c
-        adc_driver.c)
+        adc_driver.c
+        work_bench.c)
 
 set(COMPONENT_SRCS ${src_files})
 set(COMPONENT_ADD_INCLUDEDIRS ".")

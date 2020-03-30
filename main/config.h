@@ -43,6 +43,7 @@ typedef struct {
     uint8_t lumen_gate_value;
     uint8_t work_mode;
     uint8_t curtain_position;
+    uint32_t curtain_width;     // time_millisecond
     int optical_work_time[6];
     int curtain_work_time[6];
     int curtain_timer[4][5];
@@ -61,6 +62,7 @@ extern Curtain_TypeDef Curtain;
 
 esp_err_t params_init(void);
 esp_err_t params_save(void);
+void config_init(void);
 void config_unit_test(void);
 
 #endif //INTELLIGENT_CURTAIN_CONFIG_H

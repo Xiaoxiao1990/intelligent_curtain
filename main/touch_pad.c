@@ -174,7 +174,7 @@ static void tp_rtc_intr(void * arg)
     }
 }
 
-void touch_pad_initial(tp_callback_func_t func)
+void touch_pad_initial_unuse(tp_callback_func_t func)
 {
     callback_func = func;
     gpio_pad_select_gpio(BLINK_GPIO0);
@@ -182,6 +182,36 @@ void touch_pad_initial(tp_callback_func_t func)
 /* Set the GPIO as a push/pull output */
     gpio_set_direction(BLINK_GPIO0, GPIO_MODE_OUTPUT);
     gpio_set_direction(BLINK_GPIO1, GPIO_MODE_OUTPUT);
+}
+
+void touch_pad_initialize(void)
+{
+    gpio_pad_select_gpio(BLINK_GPIO0);
+    gpio_pad_select_gpio(BLINK_GPIO1);
+    /* Set the GPIO as a push/pull output */
+    gpio_set_direction(BLINK_GPIO0, GPIO_MODE_OUTPUT);
+    gpio_set_direction(BLINK_GPIO1, GPIO_MODE_OUTPUT);
+
+    // Initialize touch pad peripheral, it will start a timer to run a filter
+    ESP_LOGI(TAG, "Initializing touch pad");
+    touch_pad_init();
+    // If use interrupt trigger mode, should set touch sensor FSM mode at 'TOUCH_FSM_MODE_TIMER'.
+    touch_pad_set_fsm_mode(TOUCH_FSM_MODE_TIMER);
+    // Set reference voltage for charging/discharging
+    // For most usage scenarios, we recommend using the following combination:
+    // the high reference valtage will be 2.7V - 1V = 1.7V, The low reference voltage will be 0.5V.
+    touch_pad_set_voltage(TOUCH_HVOLT_2V7, TOUCH_LVOLT_0V5, TOUCH_HVOLT_ATTEN_1V);
+    // Init touch pad IO
+    //init RTC IO and mode for touch pad.
+    touch_pad_config(TOUCH_PAD, TOUCH_THRESH_NO_USE);
+    // Initialize and start a software filter to detect slight change of capacitance.
+    touch_pad_filter_start(TOUCHPAD_FILTER_TOUCH_PERIOD);
+    // Set thresh hold
+    tp_set_thresholds();
+    // Register touch interrupt ISR
+    touch_pad_isr_register(tp_rtc_intr, NULL);
+    // Start a task to show what pads have been touched
+    xTaskCreate(&tp_read_task, "touch_pad_read_task", 2048, NULL, 5, NULL);
 }
 
 void touch_pad_unit_test(void)

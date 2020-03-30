@@ -1105,6 +1105,7 @@ void ble_server_start(void)
     esp_ble_gap_register_callback(gap_event_handler);
     esp_ble_gatts_app_register(ESP_SPP_APP_ID);
 }
+
 void ble_spp_server_unit_test(void)
 {
     esp_err_t ret;
