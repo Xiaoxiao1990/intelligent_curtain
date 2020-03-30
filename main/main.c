@@ -19,17 +19,22 @@
 #include "config.h"
 #include "touch_pad.h"
 #include "ble_spp_server.h"
+#include "motor_controller.h"
+
+#include "adc_driver.h"
+#include "sensor.h"
 
 void app_main(void)
 {
     //optical_sensor_init();
-    config_unit_test();
-    network_config_unit_test();
-    ble_server_start();
-    touch_pad_unit_test();
-    //gatt_service_table_unit_test();
-    //ble_gatt_server_unit_test();
-    //ble_spp_server_unit_test();
+
+    motor_controller_unit_test();
+//
+//    config_unit_test();
+//    network_config_unit_test();
+//    ble_server_start();
+//    touch_pad_unit_test();
+//    adc_driver_unit_test();
     //while(1) {
         //opitcal_unit_test();
     //}

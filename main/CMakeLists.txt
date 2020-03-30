@@ -1,13 +1,15 @@
 set(src_files
         main.c
-        optical_sensor.c
+        sensor.c
         network_config.c
         tcp_client.c
         tcp_bsp.c
         config.c
         touch_pad.c
-        ble_gatt_server.c
-        ble_spp_server.c)
+        ble_spp_server.c
+        protocol_parser.c
+        motor_controller.c
+        adc_driver.c)
 
 set(COMPONENT_SRCS ${src_files})
 set(COMPONENT_ADD_INCLUDEDIRS ".")

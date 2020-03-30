@@ -20,6 +20,11 @@ typedef struct {
 #define WEEKLY_MASK_FRIDAY          0x20
 #define WEEKLY_MASK_SATURDAY        0x40
 
+typedef enum {
+    DISABLE,
+    ENABLE
+} enable_t;
+
 typedef struct {
     uint8_t s_hour;
     uint8_t s_min;

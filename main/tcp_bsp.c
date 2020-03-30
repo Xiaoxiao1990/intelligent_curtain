@@ -15,16 +15,17 @@
 #include "esp_types.h"
 #include "config.h"
 #include "touch_pad.h"
+#include "protocol_parser.h"
 
 #define DEVICE_ID       "LY0123456789"
 
-typedef enum {
+/*typedef enum {
     SET_OK,
     SET_TO_READ_ONLY_FIELD,
     SET_UNSUIABLE_VALUE,
     INVALID_VALUE,
     SET_PARAM_PARSE_FAIL
-} SetErrorCode_TypeDef;
+} SetErrorCode_TypeDef;*/
 
 //socket
 static int server_socket = 0;
@@ -75,6 +76,7 @@ static esp_err_t event_handler(void *ctx, system_event_t *event) {
     return ESP_OK;
 }
 
+/*
 #define CONSTANT_STRING_DEFINE(s)  static const char * s##_CONST_STRING = #s
 
 CONSTANT_STRING_DEFINE(message);
@@ -101,7 +103,9 @@ CONSTANT_STRING_DEFINE(curtain_repeater);
 CONSTANT_STRING_DEFINE(command);
 CONSTANT_STRING_DEFINE(args);
 CONSTANT_STRING_DEFINE(all);
+*/
 
+/*
 typedef void cmd_func_t(void *);
 
 typedef struct {
@@ -120,8 +124,9 @@ static CMD_TypeDef CommandTbl[CMD_COUNT] = {
         {.cmd = "curtain", .func = curtain},
         {.cmd = "led_control", .func = led_control}
 };
+*/
 
-static void say_hello(void *args)
+/*static void say_hello(void *args)
 {
     cJSON *root = (cJSON*)args;
     cJSON *rsp_msg = cJSON_CreateObject();
@@ -151,8 +156,9 @@ static void say_hello(void *args)
     cJSON_free(rsp_msg);
 
     cJSON_free(rsp_msg);
-}
+}*/
 
+/*
 static void curtain(void *args)
 {
     if (strcmp(args, "on") == 0) {
@@ -174,7 +180,9 @@ static void led_control(void *args)
         ESP_LOGE(TAG, "Illegal args");
     }
 }
+*/
 
+/*
 static void command_dispatch(int socket, cJSON *command)
 {
     char *cmd = cJSON_GetStringValue(command);
@@ -564,9 +572,11 @@ static void message_dispatch(int socket, cJSON *root)
         cJSON_free(rsp_msg);
     }
 }
+*/
 
 #define BUF_SIZE 1024
 
+/*
 void recv_data(void *pvParameters) {
     int len = 0;
     char databuff[BUF_SIZE];
@@ -637,11 +647,49 @@ void recv_data(void *pvParameters) {
     g_rxtx_need_restart = true;
     vTaskDelete(NULL);
 }
+*/
+
+void recv_data(void *pvParameters) {
+    int len = 0;
+    //char databuff[BUF_SIZE];
+    protocol_data_block_t data;
+
+    ESP_LOGI(TAG, "start received data...");
+
+    while (1) {
+        memset(data.rx_data, 0x00, PROTOCOL_BUFFER_LEN);
+        len = recv(connect_socket, data.rx_data, PROTOCOL_BUFFER_LEN, 0);
+        g_rxtx_need_restart = false;
+        if (len > 0) {
+            data.rx_len = (uint16_t)len;
+            esp_log_buffer_hex(TAG, data.rx_data, data.rx_len);
+            data.rx_data[data.rx_len] = 0;
+            protocol_parser(&data);
+            send(connect_socket, data.tx_data, data.tx_len, 0);
+            //sendto(connect_socket, databuff , sizeof(databuff), 0, (struct sockaddr *) &remote_addr,sizeof(remote_addr));
+        } else {
+            show_socket_error_reason("recv_data", connect_socket);
+            g_rxtx_need_restart = true;
+
+#if TCP_SERVER_CLIENT_OPTION
+            //服务器接收异常，不用break后close socket,因为有其他client
+            //break;
+            vTaskDelete(NULL);
+#else
+            //client
+            break;
+#endif
+        }
+    }
+    close_socket();
+    g_rxtx_need_restart = true;
+    vTaskDelete(NULL);
+}
 
 esp_err_t create_tcp_server(bool isCreatServer) {
 
     if (isCreatServer) {
-        ESP_LOGI(TAG, "server socket....,port=%d", TCP_PORT);
+        ESP_LOGI(TAG, "server socket....,port=%d", CONFIG_TCP_PERF_SERVER_PORT);
         server_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (server_socket < 0) {
             show_socket_error_reason("create_server", server_socket);
@@ -650,7 +698,7 @@ esp_err_t create_tcp_server(bool isCreatServer) {
         }
 
         server_addr.sin_family = AF_INET;
-        server_addr.sin_port = htons(TCP_PORT);
+        server_addr.sin_port = htons(CONFIG_TCP_PERF_SERVER_PORT);
         server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
         if (bind(server_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
@@ -752,8 +800,8 @@ int get_socket_error_code(int socket) {
     int err = getsockopt(socket, SOL_SOCKET, SO_ERROR, &result, &optlen);
     if (err == -1) {
         //WSAGetLastError();
-        ESP_LOGE(TAG, "socket error code:%d", err);
-        ESP_LOGE(TAG, "socket error code:%s", strerror(err));
+        //ESP_LOGE(TAG, "socket error code:%d", err);
+        ESP_LOGE(TAG, "socket error code[%d]:%s", err, strerror(err));
         return -1;
     }
     return result;

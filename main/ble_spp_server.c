@@ -24,6 +24,7 @@
 #include "esp_bt_main.h"
 #include "ble_spp_server.h"
 #include "config.h"
+#include "protocol_parser.h"
 
 #define GATTS_TABLE_TAG  "BLE_BLE"
 
@@ -683,168 +684,176 @@ typedef struct {
 
 static void uart_profile_parse(esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param){
 //    esp_gatt_status_t status = ESP_GATT_OK;
-    rsp_buffer_t rsp_buffer;
-
+    //rsp_buffer_t rsp_buffer;
+    protocol_data_block_t data;
     if (!param->write.is_prep) {
         ESP_LOGI(GATTS_TABLE_TAG, "GATT_WRITE_EVT, value len %d, value :", param->write.len);
-                esp_log_buffer_hex(GATTS_TABLE_TAG, param->write.value, param->write.len);
+        esp_log_buffer_hex(GATTS_TABLE_TAG, param->write.value, param->write.len);
+
+        memcpy(data.rx_data, param->write.value, param->write.len);
+        data.rx_len = param->write.len;
+
+        protocol_parser(&data);
+
+        esp_log_buffer_hex(GATTS_TABLE_TAG " RSP:", data.tx_data, data.tx_len);
+        send(data.tx_data, data.tx_len);
 
         // Normal Setting Data
-        uint8_t *data = param->write.value;
-        if (data[0] != 0x55) {
-            ESP_LOGE(GATTS_TABLE_TAG, "Illegal Header");
-            rsp_buffer.buf[0] = 0x55;
-            rsp_buffer.buf[1] = 0;
-            rsp_buffer.buf[2] = 0xFF;
-            rsp_buffer.len = 3;
-        } else {
-            switch (data[1]) {
-                case 0x00:  // system command
-                    if (data[2] == 0x01) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Start adjust curtain position");
-                        // TODO actions
-                        // TODO done
-                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                        rsp_buffer.len = param->write.len;
-                    } else if (data[2] == 0x02) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Reboot device");
-                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                        rsp_buffer.len = param->write.len;
-                        // TODO actions
-                    } else if (data[2] == 0x03) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Set Server IP & Port");
-                        snprintf(Curtain.device_params.server_address.ip, 16, "%d.%d.%d.%d", data[3], data[4], data[5], data[6]);
-                        Curtain.device_params.server_address.port = data[7];
-                        Curtain.device_params.server_address.port <<= 8;
-                        Curtain.device_params.server_address.port += data[8];
-                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                        rsp_buffer.len = param->write.len;
-                        // TODO: save to nvs
-                        params_save();
-                    } else if (data[2] == 0x04) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Read Server IP & Port");
-                        int d1, d2, d3, d4;
-                        sscanf(Curtain.device_params.server_address.ip, "%d.%d.%d.%d", &d1, &d2, &d3, &d4);
-                        rsp_buffer.buf[0] = 0x55;
-                        rsp_buffer.buf[1] = 0x00;
-                        rsp_buffer.buf[2] = 0x04;
-                        rsp_buffer.buf[3] = (uint8_t)d1;
-                        rsp_buffer.buf[4] = (uint8_t)d2;
-                        rsp_buffer.buf[5] = (uint8_t)d3;
-                        rsp_buffer.buf[6] = (uint8_t)d4;
-                        rsp_buffer.buf[7] = (uint8_t)(Curtain.device_params.server_address.port >> 8);
-                        rsp_buffer.buf[8] = (uint8_t)(Curtain.device_params.server_address.port & 0xFF);
-
-                        rsp_buffer.len = 9;
-                    } else {
-                        ESP_LOGE(GATTS_TABLE_TAG, "Undefined operation");
-                        rsp_buffer.buf[0] = 0x55;
-                        rsp_buffer.buf[1] = 0;
-                        rsp_buffer.buf[2] = 0xFE;
-                        rsp_buffer.len = 3;
-                    }
-                    break;
-                case 0x01:  // read
-                    if (data[2] == 0x01) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Read device info");
-                        // 55 01 01
-                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                        // id 6bytes
-                        memcpy(&(rsp_buffer.buf[3]), &Curtain.device_id, 6) ;
-                        // battery
-                        rsp_buffer.buf[10] = Curtain.device_params.battery;
-                        // battery temp
-                        rsp_buffer.buf[11] = Curtain.device_params.bat_temp;
-                        // battery status, 0:not charge, 1: charging, 2:charged
-                        rsp_buffer.buf[12] = Curtain.device_params.bat_state;
-                        // curtain position
-                        rsp_buffer.buf[13] = Curtain.device_params.curtain_position;
-                        // optical status
-                        rsp_buffer.buf[14] = Curtain.device_params.optical_sensor_status;
-                        // lumen
-                        rsp_buffer.buf[15] = Curtain.device_params.lumen;
-                        // work mode, 0:no mode, 1: summer, 2:winter
-                        rsp_buffer.buf[16] = Curtain.device_params.work_mode;
-                        // light gate value
-                        rsp_buffer.buf[17] = Curtain.device_params.lumen_gate_value;
-                        rsp_buffer.len = 18;
-                    } else if (data[2] == 0x03) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Read switcher time");
-                        if (data[3] > 3) {
-                            rsp_buffer.buf[0] = 0x55;
-                            rsp_buffer.buf[1] = 0;
-                            rsp_buffer.buf[2] = 0xFC;
-                            rsp_buffer.len = 3;
-                        } else {
-                            memcpy(rsp_buffer.buf, param->write.value, 4);
-                            memcpy(&rsp_buffer.buf[4], &Curtain.device_params.curtain_timer[data[3]], 5);
-                            rsp_buffer.len = 9;
-                        }
-                    } else {
-                        ESP_LOGE(GATTS_TABLE_TAG, "Undefined operation");
-                        rsp_buffer.buf[0] = 0x55;
-                        rsp_buffer.buf[1] = 0;
-                        rsp_buffer.buf[2] = 0xFE;
-                        rsp_buffer.len = 3;
-                    }
-                    break;
-                case 0x02: // set
-                    if (data[2] == 0x01) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Set time");
-                        // TODO:Set system time
-
-                        // 55 02 01
-                        memcpy(rsp_buffer.buf, param->write.value, 3);
-                        rsp_buffer.buf[3] = 1;
-                        rsp_buffer.len = 4;
-                    } else if (data[2] == 0x02) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Set light work mode");
-                        Curtain.device_params.work_mode = data[3];
-                        Curtain.device_params.lumen_gate_value = data[4];
-                        memcpy(rsp_buffer.buf, param->write.value, 3);
-                        rsp_buffer.buf[3] = Curtain.device_params.optical_sensor_status;
-                        rsp_buffer.len = 4;
-                    } else if (data[2] == 0x03) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Set switcher time");
-                        if (data[3] > 3 || param->write.len != 9) {
-                            rsp_buffer.buf[0] = 0x55;
-                            rsp_buffer.buf[1] = 0;
-                            rsp_buffer.buf[2] = 0xFC;
-                            rsp_buffer.len = 3;
-                        } else {
-                            memcpy(&Curtain.device_params.curtain_timer[data[3]], &data[4], 5);
-                            memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                            rsp_buffer.len = param->write.len;
-                        }
-                    } else if (data[2] == 0x04) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Set curtain ratio");
-                        // TODO: move curtain to target position
-                        // TODO: done
-                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                        rsp_buffer.len = param->write.len;
-                    } else if (data[2] == 0x05) {
-                        ESP_LOGI(GATTS_TABLE_TAG, "Motor control");
-                        // TODO: toggle start or stop motor
-                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
-                        rsp_buffer.len = param->write.len;
-                    } else {
-                        ESP_LOGE(GATTS_TABLE_TAG, "Undefined operation");
-                        rsp_buffer.buf[0] = 0x55;
-                        rsp_buffer.buf[1] = 0;
-                        rsp_buffer.buf[2] = 0xFE;
-                        rsp_buffer.len = 3;
-                    }
-                    break;
-                default:{
-                    rsp_buffer.buf[0] = 0x55;
-                    rsp_buffer.buf[1] = 0;
-                    rsp_buffer.buf[2] = 0xFD;
-                    rsp_buffer.len = 3;
-                } break;
-            }
-            esp_log_buffer_hex(GATTS_TABLE_TAG " RSP:", rsp_buffer.buf, rsp_buffer.len);
-            send(rsp_buffer.buf, rsp_buffer.len);
-        }
+//        uint8_t *data = param->write.value;
+//        if (data[0] != 0x55) {
+//            ESP_LOGE(GATTS_TABLE_TAG, "Illegal Header");
+//            rsp_buffer.buf[0] = 0x55;
+//            rsp_buffer.buf[1] = 0;
+//            rsp_buffer.buf[2] = 0xFF;
+//            rsp_buffer.len = 3;
+//        } else {
+//            switch (data[1]) {
+//                case 0x00:  // system command
+//                    if (data[2] == 0x01) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Start adjust curtain position");
+//                        // TODO actions
+//                        // TODO done
+//                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                        rsp_buffer.len = param->write.len;
+//                    } else if (data[2] == 0x02) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Reboot device");
+//                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                        rsp_buffer.len = param->write.len;
+//                        // TODO actions
+//                    } else if (data[2] == 0x03) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Set Server IP & Port");
+//                        snprintf(Curtain.device_params.server_address.ip, 16, "%d.%d.%d.%d", data[3], data[4], data[5], data[6]);
+//                        Curtain.device_params.server_address.port = data[7];
+//                        Curtain.device_params.server_address.port <<= 8;
+//                        Curtain.device_params.server_address.port += data[8];
+//                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                        rsp_buffer.len = param->write.len;
+//                        // TODO: save to nvs
+//                        params_save();
+//                    } else if (data[2] == 0x04) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Read Server IP & Port");
+//                        int d1, d2, d3, d4;
+//                        sscanf(Curtain.device_params.server_address.ip, "%d.%d.%d.%d", &d1, &d2, &d3, &d4);
+//                        rsp_buffer.buf[0] = 0x55;
+//                        rsp_buffer.buf[1] = 0x00;
+//                        rsp_buffer.buf[2] = 0x04;
+//                        rsp_buffer.buf[3] = (uint8_t)d1;
+//                        rsp_buffer.buf[4] = (uint8_t)d2;
+//                        rsp_buffer.buf[5] = (uint8_t)d3;
+//                        rsp_buffer.buf[6] = (uint8_t)d4;
+//                        rsp_buffer.buf[7] = (uint8_t)(Curtain.device_params.server_address.port >> 8);
+//                        rsp_buffer.buf[8] = (uint8_t)(Curtain.device_params.server_address.port & 0xFF);
+//
+//                        rsp_buffer.len = 9;
+//                    } else {
+//                        ESP_LOGE(GATTS_TABLE_TAG, "Undefined operation");
+//                        rsp_buffer.buf[0] = 0x55;
+//                        rsp_buffer.buf[1] = 0;
+//                        rsp_buffer.buf[2] = 0xFE;
+//                        rsp_buffer.len = 3;
+//                    }
+//                    break;
+//                case 0x01:  // read
+//                    if (data[2] == 0x01) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Read device info");
+//                        // 55 01 01
+//                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                        // id 6bytes
+//                        memcpy(&(rsp_buffer.buf[3]), &Curtain.device_id, 6) ;
+//                        // battery
+//                        rsp_buffer.buf[10] = Curtain.device_params.battery;
+//                        // battery temp
+//                        rsp_buffer.buf[11] = Curtain.device_params.bat_temp;
+//                        // battery status, 0:not charge, 1: charging, 2:charged
+//                        rsp_buffer.buf[12] = Curtain.device_params.bat_state;
+//                        // curtain position
+//                        rsp_buffer.buf[13] = Curtain.device_params.curtain_position;
+//                        // optical status
+//                        rsp_buffer.buf[14] = Curtain.device_params.optical_sensor_status;
+//                        // lumen
+//                        rsp_buffer.buf[15] = Curtain.device_params.lumen;
+//                        // work mode, 0:no mode, 1: summer, 2:winter
+//                        rsp_buffer.buf[16] = Curtain.device_params.work_mode;
+//                        // light gate value
+//                        rsp_buffer.buf[17] = Curtain.device_params.lumen_gate_value;
+//                        rsp_buffer.len = 18;
+//                    } else if (data[2] == 0x03) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Read switcher time");
+//                        if (data[3] > 3) {
+//                            rsp_buffer.buf[0] = 0x55;
+//                            rsp_buffer.buf[1] = 0;
+//                            rsp_buffer.buf[2] = 0xFC;
+//                            rsp_buffer.len = 3;
+//                        } else {
+//                            memcpy(rsp_buffer.buf, param->write.value, 4);
+//                            memcpy(&rsp_buffer.buf[4], &Curtain.device_params.curtain_timer[data[3]], 5);
+//                            rsp_buffer.len = 9;
+//                        }
+//                    } else {
+//                        ESP_LOGE(GATTS_TABLE_TAG, "Undefined operation");
+//                        rsp_buffer.buf[0] = 0x55;
+//                        rsp_buffer.buf[1] = 0;
+//                        rsp_buffer.buf[2] = 0xFE;
+//                        rsp_buffer.len = 3;
+//                    }
+//                    break;
+//                case 0x02: // set
+//                    if (data[2] == 0x01) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Set time");
+//                        // TODO:Set system time
+//
+//                        // 55 02 01
+//                        memcpy(rsp_buffer.buf, param->write.value, 3);
+//                        rsp_buffer.buf[3] = 1;
+//                        rsp_buffer.len = 4;
+//                    } else if (data[2] == 0x02) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Set light work mode");
+//                        Curtain.device_params.work_mode = data[3];
+//                        Curtain.device_params.lumen_gate_value = data[4];
+//                        memcpy(rsp_buffer.buf, param->write.value, 3);
+//                        rsp_buffer.buf[3] = Curtain.device_params.optical_sensor_status;
+//                        rsp_buffer.len = 4;
+//                    } else if (data[2] == 0x03) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Set switcher time");
+//                        if (data[3] > 3 || param->write.len != 9) {
+//                            rsp_buffer.buf[0] = 0x55;
+//                            rsp_buffer.buf[1] = 0;
+//                            rsp_buffer.buf[2] = 0xFC;
+//                            rsp_buffer.len = 3;
+//                        } else {
+//                            memcpy(&Curtain.device_params.curtain_timer[data[3]], &data[4], 5);
+//                            memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                            rsp_buffer.len = param->write.len;
+//                        }
+//                    } else if (data[2] == 0x04) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Set curtain ratio");
+//                        // TODO: move curtain to target position
+//                        // TODO: done
+//                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                        rsp_buffer.len = param->write.len;
+//                    } else if (data[2] == 0x05) {
+//                        ESP_LOGI(GATTS_TABLE_TAG, "Motor control");
+//                        // TODO: toggle start or stop motor
+//                        memcpy(rsp_buffer.buf, param->write.value, param->write.len);
+//                        rsp_buffer.len = param->write.len;
+//                    } else {
+//                        ESP_LOGE(GATTS_TABLE_TAG, "Undefined operation");
+//                        rsp_buffer.buf[0] = 0x55;
+//                        rsp_buffer.buf[1] = 0;
+//                        rsp_buffer.buf[2] = 0xFE;
+//                        rsp_buffer.len = 3;
+//                    }
+//                    break;
+//                default:{
+//                    rsp_buffer.buf[0] = 0x55;
+//                    rsp_buffer.buf[1] = 0;
+//                    rsp_buffer.buf[2] = 0xFD;
+//                    rsp_buffer.len = 3;
+//                } break;
+//            }
+//            esp_log_buffer_hex(GATTS_TABLE_TAG " RSP:", rsp_buffer.buf, rsp_buffer.len);
+//            send(rsp_buffer.buf, rsp_buffer.len);
+//        }
     }
 }
 
