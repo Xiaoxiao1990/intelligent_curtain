@@ -27,15 +27,18 @@ motor_t motor = {
         .state = MOTOR_STATE_STOP,
         .direction = MOTOR_RUN_FORWARD,
         .power_enable = MOTOR_DISABLE,
-        .speed = 0
+        .speed = 70.0
 };
 
 void motor_enable(motor_power_enable_t operate)
 {
-    if (operate)
+    if (operate == MOTOR_ENABLE) {
         gpio_set_level(MOTOR_PWR_EN_PIN, 1);
-    else
+        motor.power_enable = MOTOR_ENABLE;
+    } else {
         gpio_set_level(MOTOR_PWR_EN_PIN, 0);
+        motor.power_enable = MOTOR_DISABLE;
+    }
 }
 
 //static void motor_gpio_config(void) {
@@ -107,211 +110,53 @@ static void brushed_motor_stop(mcpwm_unit_t mcpwm_num, mcpwm_timer_t timer_num)
     mcpwm_set_signal_low(mcpwm_num, timer_num, MCPWM_OPR_B);
 }
 
-void motor_backward(float speed)
+void motor_backward(void)
 {
-    brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, speed);
+    if (motor.power_enable == MOTOR_DISABLE) {
+        motor_enable(MOTOR_ENABLE);
+        vTaskDelay(pdMS_TO_TICKS(50)); // slow start
+    }
+
+    if (motor.state != MOTOR_STATE_BACKWARD)
+        motor.state = MOTOR_STATE_BACKWARD;
+
+    brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, motor.speed);
 }
 
-void motor_forward(float speed)
+void motor_forward(void)
 {
-    brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, speed);
+    if (motor.power_enable == MOTOR_DISABLE) {
+        motor_enable(MOTOR_ENABLE);
+        vTaskDelay(pdMS_TO_TICKS(500)); // slow start
+    }
+
+    if (motor.direction != MOTOR_RUN_FORWARD)
+        motor.direction = MOTOR_RUN_FORWARD;
+
+    motor.state = MOTOR_STATE_FORWARD;
+    brushed_motor_forward(MCPWM_UNIT_0, MCPWM_TIMER_0, motor.speed);
 }
 
 void motor_stop(void)
 {
+    if (motor.power_enable == MOTOR_ENABLE) {
+        motor_enable(MOTOR_DISABLE);
+    }
+
+    if (motor.state != MOTOR_STATE_PRE_STOP)
+        motor.state = MOTOR_STATE_PRE_STOP;
+
     brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
 }
 
-void motor_run(direction_t direction, float speed)
+void motor_run(direction_t direction)
 {
+    //float speed = 70.0;//motor.speed;
     if (direction == MOTOR_RUN_FORWARD) {
-        motor_forward(speed);
-    } else if (direction == MOTOR_RUN_BACKWORK) {
-        motor_backward(speed);
+        motor_forward();
+    } else if (direction == MOTOR_RUN_BACKWARD) {
+        motor_backward();
     }
-
-    if (speed == 0.0)
-        motor_stop();
-}
-
-void motor_controller_task(void)
-{
-    static uint32_t width = 0;
-    adc_value_t *adc_vals = &g_adcs_vals;
-
-    switch (motor.state) {
-        case MOTOR_STATE_STOP:
-            //ESP_LOGI(TAG, "motor stop.");
-            if (adc_vals->motor_fwd_vtg > 200) {
-                ESP_LOGI(TAG, "motor start run forward by manual.");
-                motor.power_enable = MOTOR_ENABLE;
-                motor.direction = MOTOR_RUN_FORWARD;
-                motor.speed = 70.0;
-                motor.state = MOTOR_STATE_FORWARD;
-
-                motor_enable(MOTOR_ENABLE);
-                motor_run(motor.direction, motor.speed);
-            }
-
-            if (adc_vals->motor_bwd_vtg > 200) {
-                ESP_LOGI(TAG, "motor start run backward by manual.");
-                motor.power_enable = MOTOR_ENABLE;
-                motor.direction = MOTOR_RUN_BACKWORK;
-                motor.speed = 70.0;
-                motor.state = MOTOR_STATE_BACKWARD;
-
-                motor_enable(motor.power_enable);
-                motor_run(motor.direction, motor.speed);
-            }
-            break;
-        case MOTOR_STATE_FORWARD:
-            //ESP_LOGI(TAG, "motor start run forward.");
-            if (adc_vals->motor_cur_val > 900) {
-                ESP_LOGI(TAG, "motor braking!!!");
-                motor.power_enable = MOTOR_DISABLE;
-                motor.speed = 0.0;
-
-                motor_enable(motor.power_enable);
-                motor_stop();
-            }
-
-            if (adc_vals->motor_fwd_vtg < 200) {
-                motor.state = MOTOR_STATE_STOP;
-            }
-            break;
-        case MOTOR_STATE_BACKWARD:
-            //ESP_LOGI(TAG, "motor start run backward.");
-            if (adc_vals->motor_cur_val > 900) {
-                ESP_LOGI(TAG, "motor braking!!!");
-                motor.power_enable = MOTOR_DISABLE;
-                motor.speed = 0;
-
-                motor_enable(motor.power_enable);
-                motor_stop();
-            }
-
-            if (adc_vals->motor_bwd_vtg < 200) {
-                motor.state = MOTOR_STATE_STOP;
-            }
-            break;
-        case MOTOR_STATE_ADJUST:
-            ESP_LOGI(TAG, "curtain start to adjust!");
-            motor.power_enable = MOTOR_ENABLE;
-            motor.speed = 70.0;
-            motor.direction = MOTOR_RUN_BACKWORK;
-
-            motor_enable(motor.power_enable);
-            motor_run(motor.direction, motor.speed);
-            motor.state = MOTOR_ADJUST_BACK_TO_ORIGIN;
-            width = 0;
-            break;
-        case MOTOR_ADJUST_BACK_TO_ORIGIN:
-            if (adc_vals->motor_cur_val > 900) {
-                ESP_LOGI(TAG, "motor back to origin....");
-                motor.power_enable = MOTOR_DISABLE;
-                motor.speed = 0;
-
-                motor_enable(motor.power_enable);
-                motor_stop();
-            }
-
-            if (adc_vals->motor_bwd_vtg < 200) {
-                ESP_LOGI(TAG, "start to count width eclipse time");
-                motor.power_enable = MOTOR_ENABLE;
-                motor.direction = MOTOR_RUN_FORWARD;
-                motor.speed = 70.0;
-                motor.state = MOTOR_STATE_FORWARD;
-
-                motor_enable(MOTOR_ENABLE);
-                motor_run(motor.direction, motor.speed);
-
-                motor.state = MOTOR_ADJUST_ARRIVE_END;
-                width = 0;
-            }
-            break;
-        case MOTOR_ADJUST_ARRIVE_END:
-            if (adc_vals->motor_cur_val > 900) {
-                ESP_LOGI(TAG, "motor arrived the end of other side.");
-                motor.power_enable = MOTOR_DISABLE;
-                motor.speed = 0;
-
-                motor_enable(motor.power_enable);
-                motor_stop();
-            }
-
-            if (adc_vals->motor_fwd_vtg < 200) {
-                Curtain.device_params.curtain_position = 100;
-                Curtain.device_params.curtain_width = width;
-
-                width = 0;
-                params_save();
-                motor.state = MOTOR_STATE_STOP;
-            } else {
-                if (width < 0xFFFFFFFF)
-                    width++;
-            }
-            break;
-        case MOTOR_POSITION_ADJUST:
-            if (Curtain.device_params.curtain_position > motor_target_position(0, 0)) {
-                motor.power_enable = MOTOR_ENABLE;
-                motor.direction = MOTOR_RUN_BACKWORK;
-                motor.speed = 70.0;
-                motor.state = MOTOR_POSITION_ADJUST_LEFT;
-
-                motor_enable(motor.power_enable);
-                motor_run(motor.direction, motor.speed);
-            }
-
-            if (Curtain.device_params.curtain_position < motor_target_position(0, 0)) {
-                motor.power_enable = MOTOR_ENABLE;
-                motor.direction = MOTOR_RUN_FORWARD;
-                motor.speed = 70.0;
-                motor.state = MOTOR_POSITION_ADJUST_RIGHT;
-
-                motor_enable(MOTOR_ENABLE);
-                motor_run(motor.direction, motor.speed);
-            }
-            break;
-        case MOTOR_POSITION_ADJUST_LEFT:
-            if (Curtain.device_params.curtain_position)
-                Curtain.device_params.curtain_position--;
-            if (Curtain.device_params.curtain_position < motor_target_position(0, 0)) {
-                ESP_LOGI(TAG, "motor arrived the target left position.");
-                motor.power_enable = MOTOR_DISABLE;
-                motor.speed = 0;
-
-                motor_enable(motor.power_enable);
-                motor_stop();
-                motor.state = MOTOR_STATE_STOP;
-            }
-            break;
-        case MOTOR_POSITION_ADJUST_RIGHT:
-            if (Curtain.device_params.curtain_position < Curtain.device_params.curtain_width)
-                Curtain.device_params.curtain_position++;
-            if (Curtain.device_params.curtain_position > motor_target_position(0, 0)) {
-                ESP_LOGI(TAG, "motor arrived the target right position.");
-                motor.power_enable = MOTOR_DISABLE;
-                motor.speed = 0;
-
-                motor_enable(motor.power_enable);
-                motor_stop();
-                motor.state = MOTOR_STATE_STOP;
-            }
-            break;
-        default:
-            break;
-    }
-}
-
-uint32_t motor_target_position(uint32_t position, bool set_or_get)
-{
-    static uint32_t target = 0;
-
-    if (set_or_get) {
-        target = position;
-    }
-
-    return target;
 }
 
 void motor_init(void)
@@ -347,9 +192,43 @@ static void mcpwm_example_brushed_motor_control()
 //        brushed_motor_backward(MCPWM_UNIT_0, MCPWM_TIMER_0, 60.0);
 //        vTaskDelay(2000 / portTICK_RATE_MS);
 //        brushed_motor_stop(MCPWM_UNIT_0, MCPWM_TIMER_0);
-        motor_controller_task();
+        //motor_controller_task();
         get_adcs_values();
         vTaskDelay(50 / portTICK_RATE_MS);
+    }
+}
+
+
+void motor_controller_state_machine(void)
+{
+    adc_value_t *adc_vals = &g_adcs_vals;
+
+    switch (motor.state) {
+        case MOTOR_STATE_STOP:
+            // Nothing to do
+            break;
+        case MOTOR_STATE_PRE_STOP:
+            if (adc_vals->motor_cur_vtg < 120 && adc_vals->motor_fwd_vtg < 120 && adc_vals->motor_bwd_vtg < 120) {
+                ESP_LOGI(TAG, "motor stopped");
+                motor.state = MOTOR_STATE_STOP;
+            }
+            break;
+        case MOTOR_STATE_FORWARD:
+            if (adc_vals->motor_cur_val > 900) {
+                ESP_LOGI(TAG, "motor braking!!!");
+                motor_stop();
+            }
+            break;
+        case MOTOR_STATE_BACKWARD:
+            if (adc_vals->motor_cur_val > 900) {
+                ESP_LOGI(TAG, "motor braking!!!");
+                motor_stop();
+            }
+            break;
+        default:
+            motor.state = MOTOR_STATE_PRE_STOP;
+            Curtain.state = CURTAIN_IDLE;
+            break;
     }
 }
 

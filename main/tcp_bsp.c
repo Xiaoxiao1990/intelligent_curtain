@@ -726,7 +726,7 @@ esp_err_t create_tcp_server(bool isCreatServer) {
 
 esp_err_t create_tcp_client(void) {
     ESP_LOGI(TAG, "will connect gateway IP: %s port:%d",
-             Curtain.device_params.server_address.ip, Curtain.device_params.server_address.port);
+             Curtain.server_address.ip, Curtain.server_address.port);
     connect_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (connect_socket < 0) {
         show_socket_error_reason("create client", connect_socket);
@@ -735,8 +735,8 @@ esp_err_t create_tcp_client(void) {
     }
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(Curtain.device_params.server_address.port);
-    server_addr.sin_addr.s_addr = inet_addr(Curtain.device_params.server_address.ip);
+    server_addr.sin_port = htons(Curtain.server_address.port);
+    server_addr.sin_addr.s_addr = inet_addr(Curtain.server_address.ip);
     ESP_LOGI(TAG, "connecting server...");
 
     if (connect(connect_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {

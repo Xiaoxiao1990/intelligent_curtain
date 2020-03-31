@@ -34,28 +34,44 @@ typedef struct {
     uint8_t e_second;
 } WorkTime_TypeDef;
 
+
+typedef enum {
+    CURTAIN_IDLE,
+    CURTAIN_WIDTH_ADJUST,
+    CURTAIN_MANUAL_ADJUST,
+    CURTAIN_SET_POSITION,
+
+    CURTAIN_INVALID
+} curtain_state_t;
+
 typedef struct {
+    uint8_t action;
+    uint8_t repeater;
+    uint8_t hour;
+    uint8_t min;
+} work_time_t;
+
+typedef struct Config_TAG {
+    char device_id[10];
+    bool is_wifi_config;
+    curtain_state_t state;
+
     uint8_t battery;
     uint8_t bat_temp;
     uint8_t bat_state;
     uint8_t optical_sensor_status;
     uint8_t lumen;
-    uint8_t lumen_gate_value;
+    uint32_t lumen_gate_value;
     uint8_t work_mode;
-    uint8_t curtain_position;
+    uint32_t curtain_ratio;
+    uint32_t curtain_position;
+    uint32_t target_position;
     uint32_t curtain_width;     // time_millisecond
-    int optical_work_time[6];
-    int curtain_work_time[6];
-    int curtain_timer[4][5];
-    uint8_t curtain_repeater;
-    IPv4_Address_TypeDef server_address;
-} Device_Params_TypeDef;
+    work_time_t curtain_timer[4]; // auto on off timer
 
-typedef struct Config_TAG {
-    char device_id[10];
-    bool is_wifi_config;
+    IPv4_Address_TypeDef server_address;
+
     wifi_config_t wifi_config;
-    Device_Params_TypeDef device_params;
 } Curtain_TypeDef;
 
 extern Curtain_TypeDef Curtain;

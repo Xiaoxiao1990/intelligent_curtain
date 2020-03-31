@@ -34,7 +34,7 @@ typedef enum {
     CH_MOTOR_BACKWARD, // ch3
     CH_OPTICAL, // ch4
     CH_BAT_TEMP, // ch5
-    CH_MOTOR_BRAK, // ch6
+    CH_MOTOR_BRAKE, // ch6
     CH_BAT_VOLTAGE // ch7
 } adc_ch_t;
 
@@ -105,28 +105,28 @@ void get_adcs_values(void)
 
         g_adcs_vals.motor_fwd_val = adc_reading[CH_MOTOR_FORWARD];
         g_adcs_vals.motor_bwd_val = adc_reading[CH_MOTOR_BACKWARD];
-        g_adcs_vals.motor_cur_val = adc_reading[CH_MOTOR_BRAK];
+        g_adcs_vals.motor_cur_val = adc_reading[CH_MOTOR_BRAKE];
         g_adcs_vals.optical_val = adc_reading[CH_OPTICAL];
         g_adcs_vals.bat_chr_val = adc_reading[CH_BAT_VOLTAGE];
         g_adcs_vals.bat_tmp_val = adc_reading[CH_BAT_TEMP];
 
         g_adcs_vals.motor_fwd_vtg = adc_voltage[CH_MOTOR_FORWARD];
         g_adcs_vals.motor_bwd_vtg = adc_voltage[CH_MOTOR_BACKWARD];
-        g_adcs_vals.motor_cur_vtg = adc_voltage[CH_MOTOR_BRAK];
+        g_adcs_vals.motor_cur_vtg = adc_voltage[CH_MOTOR_BRAKE];
         g_adcs_vals.optical_vtg = adc_voltage[CH_OPTICAL];
         g_adcs_vals.bat_chr_vtg = adc_voltage[CH_BAT_VOLTAGE];
         g_adcs_vals.bat_tmp_vtg = adc_voltage[CH_BAT_TEMP];
 
         g_adcs_vals.battery_temp = (adc_voltage[CH_BAT_TEMP] - 500) / 10;
         g_adcs_vals.battery_voltage = (adc_voltage[CH_BAT_VOLTAGE] >> 1) * 3;
-//
-//        if (print_times++ > 2) {
-//            print_times = 0;
-//            printf("ADCs: %d, %d, %d, %d, %d, %d\n", adc_reading[0], adc_reading[1], adc_reading[2], adc_reading[3],
-//                   adc_reading[4], adc_reading[5]);
-//            printf("Voltages %dmV, %dmV, %dmV, %dmV, %dmV, %dmV\n", adc_voltage[0], adc_voltage[1], adc_voltage[2],
-//                   adc_voltage[3], adc_voltage[4], adc_voltage[5]);
-//        }
+
+        if (print_times++ > 2) {
+            print_times = 0;
+            printf("ADCs: %d, %d, %d, %d, %d, %d\n", g_adcs_vals.motor_fwd_val, g_adcs_vals.motor_bwd_val, g_adcs_vals.motor_cur_val
+                    , g_adcs_vals.optical_val, g_adcs_vals.bat_tmp_val, g_adcs_vals.bat_chr_val);
+            printf("Voltages %dmV, %dmV, %dmV, %dmV, %dmV, %dmV\n", g_adcs_vals.motor_fwd_vtg, g_adcs_vals.motor_bwd_vtg,
+                   g_adcs_vals.motor_cur_vtg, g_adcs_vals.optical_vtg, g_adcs_vals.bat_tmp_vtg, g_adcs_vals.bat_chr_vtg);
+        }
     }
 
 }
@@ -157,14 +157,14 @@ void adc_driver_unit_test(void)
 
             g_adcs_vals.motor_fwd_val = adc_reading[CH_MOTOR_FORWARD];
             g_adcs_vals.motor_bwd_val = adc_reading[CH_MOTOR_BACKWARD];
-            g_adcs_vals.motor_cur_val = adc_reading[CH_MOTOR_BRAK];
+            g_adcs_vals.motor_cur_val = adc_reading[CH_MOTOR_BRAKE];
             g_adcs_vals.optical_val = adc_reading[CH_OPTICAL];
             g_adcs_vals.bat_chr_val = adc_reading[CH_BAT_VOLTAGE];
             g_adcs_vals.bat_tmp_val = adc_reading[CH_BAT_TEMP];
 
             g_adcs_vals.motor_fwd_vtg = adc_voltage[CH_MOTOR_FORWARD];
             g_adcs_vals.motor_bwd_vtg = adc_voltage[CH_MOTOR_BACKWARD];
-            g_adcs_vals.motor_cur_vtg = adc_voltage[CH_MOTOR_BRAK];
+            g_adcs_vals.motor_cur_vtg = adc_voltage[CH_MOTOR_BRAKE];
             g_adcs_vals.optical_vtg = adc_voltage[CH_OPTICAL];
             g_adcs_vals.bat_chr_vtg = adc_voltage[CH_BAT_VOLTAGE];
             g_adcs_vals.bat_tmp_vtg = adc_voltage[CH_BAT_TEMP];

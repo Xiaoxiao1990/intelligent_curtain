@@ -41,10 +41,10 @@ int protocol_parser(protocol_data_block_t *data)
                     // TODO actions
                 } else if (rx[2] == 0x03) {
                     ESP_LOGI(PARSER_TAG, "Set Server IP & Port");
-                    snprintf(Curtain.device_params.server_address.ip, 16, "%d.%d.%d.%d", rx[3], rx[4], rx[5], rx[6]);
-                    Curtain.device_params.server_address.port = rx[7];
-                    Curtain.device_params.server_address.port <<= 8;
-                    Curtain.device_params.server_address.port += rx[8];
+                    snprintf(Curtain.server_address.ip, 16, "%d.%d.%d.%d", rx[3], rx[4], rx[5], rx[6]);
+                    Curtain.server_address.port = rx[7];
+                    Curtain.server_address.port <<= 8;
+                    Curtain.server_address.port += rx[8];
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
                     // TODO: save to nvs
@@ -52,7 +52,7 @@ int protocol_parser(protocol_data_block_t *data)
                 } else if (rx[2] == 0x04) {
                     ESP_LOGI(PARSER_TAG, "Read Server IP & Port");
                     int d1, d2, d3, d4;
-                    sscanf(Curtain.device_params.server_address.ip, "%d.%d.%d.%d", &d1, &d2, &d3, &d4);
+                    sscanf(Curtain.server_address.ip, "%d.%d.%d.%d", &d1, &d2, &d3, &d4);
                     tx[0] = 0x55;
                     tx[1] = 0x00;
                     tx[2] = 0x04;
@@ -60,8 +60,8 @@ int protocol_parser(protocol_data_block_t *data)
                     tx[4] = (uint8_t) d2;
                     tx[5] = (uint8_t) d3;
                     tx[6] = (uint8_t) d4;
-                    tx[7] = (uint8_t) (Curtain.device_params.server_address.port >> 8);
-                    tx[8] = (uint8_t) (Curtain.device_params.server_address.port & 0xFF);
+                    tx[7] = (uint8_t) (Curtain.server_address.port >> 8);
+                    tx[8] = (uint8_t) (Curtain.server_address.port & 0xFF);
 
                     data->tx_len = 9;
                 } else {
@@ -80,21 +80,21 @@ int protocol_parser(protocol_data_block_t *data)
                     // id 6bytes
                     memcpy(&(tx[3]), &Curtain.device_id, 6);
                     // battery
-                    tx[10] = Curtain.device_params.battery;
+                    tx[10] = Curtain.battery;
                     // battery temp
-                    tx[11] = Curtain.device_params.bat_temp;
+                    tx[11] = Curtain.bat_temp;
                     // battery status, 0:not charge, 1: charging, 2:charged
-                    tx[12] = Curtain.device_params.bat_state;
+                    tx[12] = Curtain.bat_state;
                     // curtain position
-                    tx[13] = Curtain.device_params.curtain_position;
+                    tx[13] = Curtain.curtain_position;
                     // optical status
-                    tx[14] = Curtain.device_params.optical_sensor_status;
+                    tx[14] = Curtain.optical_sensor_status;
                     // lumen
-                    tx[15] = Curtain.device_params.lumen;
+                    tx[15] = Curtain.lumen;
                     // work mode, 0:no mode, 1: summer, 2:winter
-                    tx[16] = Curtain.device_params.work_mode;
+                    tx[16] = Curtain.work_mode;
                     // light gate value
-                    tx[17] = Curtain.device_params.lumen_gate_value;
+                    tx[17] = Curtain.lumen_gate_value;
                     data->tx_len = 18;
                 } else if (rx[2] == 0x03) {
                     ESP_LOGI(PARSER_TAG, "Read switcher time");
@@ -105,7 +105,7 @@ int protocol_parser(protocol_data_block_t *data)
                         data->tx_len = 3;
                     } else {
                         memcpy(tx, rx, 4);
-                        memcpy(&tx[4], &Curtain.device_params.curtain_timer[rx[3]], 5);
+                        memcpy(&tx[4], &Curtain.curtain_timer[rx[3]], 5);
                         data->tx_len = 9;
                     }
                 } else {
@@ -127,10 +127,10 @@ int protocol_parser(protocol_data_block_t *data)
                     data->tx_len = 4;
                 } else if (rx[2] == 0x02) {
                     ESP_LOGI(PARSER_TAG, "Set light work mode");
-                    Curtain.device_params.work_mode = rx[3];
-                    Curtain.device_params.lumen_gate_value = rx[4];
+                    Curtain.work_mode = rx[3];
+                    Curtain.lumen_gate_value = rx[4];
                     memcpy(tx, rx, 3);
-                    tx[3] = Curtain.device_params.optical_sensor_status;
+                    tx[3] = Curtain.optical_sensor_status;
                     data->tx_len = 4;
                 } else if (rx[2] == 0x03) {
                     ESP_LOGI(PARSER_TAG, "Set switcher time");
@@ -140,36 +140,36 @@ int protocol_parser(protocol_data_block_t *data)
                         tx[2] = 0xFC;
                         data->tx_len = 3;
                     } else {
-                        memcpy(&Curtain.device_params.curtain_timer[rx[3]], &rx[4], 5);
+                        memcpy(&Curtain.curtain_timer[rx[3]], &rx[4], 5);
                         memcpy(tx, rx, rx_len);
                         data->tx_len = rx_len;
                     }
                 } else if (rx[2] == 0x04) {
-                    ESP_LOGI(PARSER_TAG, "Set curtain ratio");
+                    ESP_LOGI(PARSER_TAG, "Set curtain ratio: %d%%", rx[3]);
                     if (rx[3] > 100) {
-                        motor_target_position(Curtain.device_params.curtain_width, 1);
+                        // motor_target_position(Curtain.curtain_width, 1);
+                        Curtain.target_position = Curtain.curtain_width;
+                        Curtain.state = CURTAIN_SET_POSITION;
                     } else {
-                        motor_target_position(Curtain.device_params.curtain_width * rx[3] / 100, 1);
+                        // motor_target_position(Curtain.curtain_width * rx[3] / 100, 1);
+                        Curtain.target_position = Curtain.curtain_width * rx[3] / 100;
+                        Curtain.state = CURTAIN_SET_POSITION;
                     }
-                    motor.state = MOTOR_POSITION_ADJUST;
+
                     // TODO: done
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
                 } else if (rx[2] == 0x05) {
                     ESP_LOGI(PARSER_TAG, "Motor control");
                     if (rx[3]){
-                        motor.state = MOTOR_STATE_FORWARD;
-                        motor.speed = 70.0;
-                        motor.direction = MOTOR_RUN_FORWARD;
-                        motor.power_enable = MOTOR_ENABLE;
-
-                        motor_run(motor.direction, motor.speed);
+                        motor_stop();
+                        Curtain.state = CURTAIN_IDLE;
                     } else {
-                        motor.state = MOTOR_STATE_BACKWARD;
-                        motor.speed = 70.0;
-                        motor.direction = MOTOR_RUN_BACKWORK;
-                        motor.power_enable = MOTOR_ENABLE;
-                        motor_run(motor.direction, motor.speed);
+                        if (rx[4])
+                            motor_backward();
+                        else
+                            motor_forward();
+                        Curtain.state = CURTAIN_MANUAL_ADJUST;
                     }
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;

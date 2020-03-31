@@ -9,6 +9,7 @@ typedef enum {
     MOTOR_STATE_STOP,
     MOTOR_STATE_FORWARD,
     MOTOR_STATE_BACKWARD,
+    MOTOR_STATE_PRE_STOP,
     // Curtain adjust state
     MOTOR_STATE_ADJUST,
     MOTOR_ADJUST_BACK_TO_ORIGIN,
@@ -23,7 +24,7 @@ typedef enum {
 
 typedef enum {
     MOTOR_RUN_FORWARD,
-    MOTOR_RUN_BACKWORK
+    MOTOR_RUN_BACKWARD
 } direction_t;
 
 typedef enum {
@@ -41,9 +42,13 @@ typedef struct {
 extern motor_t motor;
 
 void motor_init(void);
-void motor_run(direction_t direction, float speed);
-void motor_controller_task(void);
-uint32_t motor_target_position(uint32_t position, bool set_or_get);
+void motor_stop(void);
+void motor_forward(void);
+void motor_backward(void);
+
+void motor_run(direction_t direction);
+void motor_controller_state_machine(void);
+
 void motor_controller_unit_test(void);
 
 #endif //INTELLIGENT_CURTAIN_MOTOR_CONTROLLER_H
