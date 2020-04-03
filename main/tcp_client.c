@@ -12,12 +12,16 @@
 #include "esp_err.h"
 #include "nvs_flash.h"
 #include "tcp_bsp.h"
+#include "network_time_sntp.h"
 
 static const char *TAG = "TCP Client";
 
 void tcp_client(void *pvParameters)
 {
+    esp_wait_sntp_sync();
+
     ESP_LOGI(TAG, "start tcp connecting....");
+
     while (1) {
         g_rxtx_need_restart = false;
         //等待WIFI连接信号量，死等

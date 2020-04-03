@@ -10,7 +10,8 @@ set(src_files
         protocol_parser.c
         motor_controller.c
         adc_driver.c
-        work_bench.c)
+        work_bench.c
+        network_time_sntp.c)
 
 set(COMPONENT_SRCS ${src_files})
 set(COMPONENT_ADD_INCLUDEDIRS ".")

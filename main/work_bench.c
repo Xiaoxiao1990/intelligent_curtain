@@ -5,6 +5,7 @@
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#include <time.h>
 #include "work_bench.h"
 #include "config.h"
 #include "network_config.h"
@@ -12,6 +13,7 @@
 #include "motor_controller.h"
 #include "adc_driver.h"
 #include "touch_pad.h"
+#include "network_time_sntp.h"
 
 #define TAG       "WORK_BENCH"
 
@@ -186,15 +188,25 @@ void curtain_state_machine(void)
 
 void optical_timer_check_per_minute(void)
 {
-    uint8_t weekday = 0, hour = 0, min = 0;
+    time_t now = 0;
+    struct tm time_info = { 0 };
+    uint8_t weekday = 0;
+
+    time(&now);
+    localtime_r(&now, &time_info);
+    ESP_LOGI(TAG, "time now: %d:%d:%d", time_info.tm_hour, time_info.tm_min, time_info.tm_sec);
 
     if (Curtain.optical_sensor_status) {
         if (g_adcs_vals.optical_val > Curtain.lumen_gate_value) {
+            motor_forward();
+        }
 
+        if (g_adcs_vals.optical_val < Curtain.lumen_gate_value - 200) {
+            motor_backward();
         }
     } else {
         for (int i = 0; i < 4; ++i) {
-            if (Curtain.curtain_timer[i].hour == hour && Curtain.curtain_timer[i].min == min) {
+            if (Curtain.curtain_timer[i].hour == time_info.tm_hour && Curtain.curtain_timer[i].min == time_info.tm_min) {
                 // create a task
                 if (Curtain.curtain_timer[i].repeater & (uint8_t)0x80) {
                     Curtain.curtain_timer[i].repeater = 0;
@@ -213,6 +225,29 @@ void optical_timer_check_per_minute(void)
     }
 }
 
+void timer_task(void *arg)
+{
+    int daily = 0, minutely = 0;
+
+    while (1) {
+        if (daily++ > 3600*24) {
+            daily = 0;
+            if (network_state == NETWORK_CONNECTED) {
+                esp_wait_sntp_sync();
+            }
+        }
+
+        if (minutely++ > 60) {
+            minutely = 0;
+
+            optical_timer_check_per_minute();
+
+        }
+
+        vTaskDelay(1000 / portTICK_RATE_MS);
+    }
+}
+
 void work_bench(void)
 {
     config_init();
@@ -220,11 +255,12 @@ void work_bench(void)
     motor_init();
     adc_unit_init();
 
-    //wifi_service_start();
+    wifi_service_start();
     ble_server_start();
 
     Curtain.state = CURTAIN_WIDTH_ADJUST;
 
+    xTaskCreate(&timer_task, "timer_task", 4096, NULL, 6, NULL);
     int a = 0;
     while (1) {
         if (a++ > 30) {
