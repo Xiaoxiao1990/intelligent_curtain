@@ -4,6 +4,8 @@
 
 #include <esp_log.h>
 #include <string.h>
+#include <time.h>
+#include <lwipopts.h>
 #include "protocol_parser.h"
 #include "config.h"
 #include "motor_controller.h"
@@ -30,7 +32,7 @@ int protocol_parser(protocol_data_block_t *data)
             case 0x00:  // system command
                 if (rx[2] == 0x01) {
                     ESP_LOGI(PARSER_TAG, "Start adjust curtain position");
-                    motor.state = MOTOR_STATE_ADJUST;
+                    Curtain.state = CURTAIN_WIDTH_ADJUST;
                     // TODO done
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
@@ -120,7 +122,10 @@ int protocol_parser(protocol_data_block_t *data)
                 if (rx[2] == 0x01) {
                     ESP_LOGI(PARSER_TAG, "Set time");
                     // TODO:Set system time
+                    // set timezone to China Standard Time
 
+//                    setenv("TZ", "CST-8", 1);
+//                    tzset();
                     // 55 02 01
                     memcpy(tx, rx, 3);
                     tx[3] = 1;
@@ -128,10 +133,12 @@ int protocol_parser(protocol_data_block_t *data)
                 } else if (rx[2] == 0x02) {
                     ESP_LOGI(PARSER_TAG, "Set light work mode");
                     Curtain.work_mode = rx[3];
-                    Curtain.lumen_gate_value = rx[4];
-                    memcpy(tx, rx, 3);
-                    tx[3] = Curtain.optical_sensor_status;
-                    data->tx_len = 4;
+                    Curtain.optical_sensor_status = tx[4];
+                    Curtain.lumen_gate_value = rx[5];
+                    memcpy(tx, rx, 6);
+
+                    data->tx_len = 6;
+                    params_save();
                 } else if (rx[2] == 0x03) {
                     ESP_LOGI(PARSER_TAG, "Set switcher time");
                     if (rx[3] > 3 || rx_len != 9) {
@@ -143,6 +150,7 @@ int protocol_parser(protocol_data_block_t *data)
                         memcpy(&Curtain.curtain_timer[rx[3]], &rx[4], 5);
                         memcpy(tx, rx, rx_len);
                         data->tx_len = rx_len;
+                        params_save();
                     }
                 } else if (rx[2] == 0x04) {
                     ESP_LOGI(PARSER_TAG, "Set curtain ratio: %d%%", rx[3]);

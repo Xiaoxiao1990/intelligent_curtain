@@ -18,6 +18,7 @@
 #include "driver/gpio.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
+#include "config.h"
 
 #define DEFAULT_VREF    1100        //Use adc2_vref_to_gpio() to obtain a better estimate
 #define NO_OF_SAMPLES   16          //Multisampling
@@ -118,7 +119,10 @@ void get_adcs_values(void)
         g_adcs_vals.bat_tmp_vtg = adc_voltage[CH_BAT_TEMP];
 
         g_adcs_vals.battery_temp = (adc_voltage[CH_BAT_TEMP] - 500) / 10;
-        g_adcs_vals.battery_voltage = (adc_voltage[CH_BAT_VOLTAGE] >> 1) * 3;
+        g_adcs_vals.battery_voltage = ((adc_voltage[CH_BAT_VOLTAGE] * 3 / 200) - 3000); // Vbat = (battery_voltage * 10 + 3000) mV
+
+        Curtain.bat_temp = (uint8_t)(g_adcs_vals.battery_temp);
+        Curtain.battery = (uint8_t)g_adcs_vals.battery_voltage;
 
         if (print_times++ > 2) {
             print_times = 0;

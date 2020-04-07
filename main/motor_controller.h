@@ -10,14 +10,14 @@ typedef enum {
     MOTOR_STATE_FORWARD,
     MOTOR_STATE_BACKWARD,
     MOTOR_STATE_PRE_STOP,
-    // Curtain adjust state
-    MOTOR_STATE_ADJUST,
-    MOTOR_ADJUST_BACK_TO_ORIGIN,
-    MOTOR_ADJUST_ARRIVE_END,
-    // Curtain position adjust
-    MOTOR_POSITION_ADJUST,
-    MOTOR_POSITION_ADJUST_LEFT,
-    MOTOR_POSITION_ADJUST_RIGHT,
+//    // Curtain adjust state
+//    MOTOR_STATE_ADJUST,
+//    MOTOR_ADJUST_BACK_TO_ORIGIN,
+//    MOTOR_ADJUST_ARRIVE_END,
+//    // Curtain position adjust
+//    MOTOR_POSITION_ADJUST,
+//    MOTOR_POSITION_ADJUST_LEFT,
+//    MOTOR_POSITION_ADJUST_RIGHT,
 
     MOTOR_STATE_INVAILID
 } motor_state_t;

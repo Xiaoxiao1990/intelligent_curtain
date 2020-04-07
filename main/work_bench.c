@@ -6,6 +6,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <time.h>
+#include <lwipopts.h>
 #include "work_bench.h"
 #include "config.h"
 #include "network_config.h"
@@ -16,6 +17,8 @@
 #include "network_time_sntp.h"
 
 #define TAG       "WORK_BENCH"
+
+#define CHARGE_STATE_DET_PIN        GPIO_NUM_21
 
 void curtain_idle(void);
 void curtain_manual_adjust(void);
@@ -109,7 +112,7 @@ void curtain_width_adjust(void)
             Curtain.curtain_position = width;
             Curtain.curtain_ratio = 100;
             // TODO save
-            //params_save();
+            params_save();
             Curtain.state = CURTAIN_IDLE;
             curtain_width_adjust_state = 0;
             break;
@@ -190,60 +193,80 @@ void optical_timer_check_per_minute(void)
 {
     time_t now = 0;
     struct tm time_info = { 0 };
-    uint8_t weekday = 0;
 
     time(&now);
     localtime_r(&now, &time_info);
     ESP_LOGI(TAG, "time now: %d:%d:%d", time_info.tm_hour, time_info.tm_min, time_info.tm_sec);
 
     if (Curtain.optical_sensor_status) {
+
         if (g_adcs_vals.optical_val > Curtain.lumen_gate_value) {
+            ESP_LOGE(TAG, "optical gate value too big");
             motor_forward();
         }
 
         if (g_adcs_vals.optical_val < Curtain.lumen_gate_value - 200) {
+            ESP_LOGE(TAG, "optical gate value too small");
             motor_backward();
         }
     } else {
         for (int i = 0; i < 4; ++i) {
             if (Curtain.curtain_timer[i].hour == time_info.tm_hour && Curtain.curtain_timer[i].min == time_info.tm_min) {
                 // create a task
-                if (Curtain.curtain_timer[i].repeater & (uint8_t)0x80) {
-                    Curtain.curtain_timer[i].repeater = 0;
-                    if (Curtain.curtain_timer[i].action)
+                if (Curtain.curtain_timer[i].repeater & (uint8_t)((uint8_t)0x01 << (uint8_t)time_info.tm_wday)) {
+                    if (Curtain.curtain_timer[i].repeater & (uint8_t)0x80) {
+                        Curtain.curtain_timer[i].repeater = 0;
+                    }
+
+                    if (Curtain.curtain_timer[i].action) {
+                        ESP_LOGE(TAG, "timer %d start backward.", time_info.tm_wday);
                         motor_backward();
-                    else
+                    } else {
+                        ESP_LOGE(TAG, "timer %d start forward", time_info.tm_wday);
                         motor_forward();
-                } else if (Curtain.curtain_timer[i].repeater & weekday) {
-                    if (Curtain.curtain_timer[i].action)
-                        motor_backward();
-                    else
-                        motor_forward();
+                    }
                 }
             }
         }
     }
 }
 
+void charge_state_detect_init(void)
+{
+    //第一种方式配置
+    gpio_pad_select_gpio(CHARGE_STATE_DET_PIN);
+    gpio_set_direction(CHARGE_STATE_DET_PIN, GPIO_MODE_INPUT);
+}
+
+int charge_state()
+{
+    return gpio_get_level(CHARGE_STATE_DET_PIN);
+}
+
 void timer_task(void *arg)
 {
-    int daily = 0, minutely = 0;
+    int daily = 0;
+    int minutely = 0;
 
     while (1) {
-        if (daily++ > 3600*24) {
-            daily = 0;
-            if (network_state == NETWORK_CONNECTED) {
-                esp_wait_sntp_sync();
+        if (Curtain.state == CURTAIN_IDLE) {
+
+            if (daily++ > 3600 * 24) {
+                daily = 0;
+                if (network_state == NETWORK_CONNECTED) {
+                    esp_wait_sntp_sync();
+                }
             }
+
+            if (minutely++ > 60) {
+                minutely = 0;
+
+                optical_timer_check_per_minute();
+
+            }
+
+            Curtain.bat_state = charge_state(); // 1 charged, 0 charging
         }
-
-        if (minutely++ > 60) {
-            minutely = 0;
-
-            optical_timer_check_per_minute();
-
-        }
-
         vTaskDelay(1000 / portTICK_RATE_MS);
     }
 }
@@ -257,8 +280,9 @@ void work_bench(void)
 
     wifi_service_start();
     ble_server_start();
+    charge_state_detect_init();
 
-    Curtain.state = CURTAIN_WIDTH_ADJUST;
+    Curtain.state = CURTAIN_IDLE;
 
     xTaskCreate(&timer_task, "timer_task", 4096, NULL, 6, NULL);
     int a = 0;
