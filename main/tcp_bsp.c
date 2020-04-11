@@ -725,8 +725,9 @@ esp_err_t create_tcp_server(bool isCreatServer) {
 }
 
 esp_err_t create_tcp_client(void) {
-    ESP_LOGI(TAG, "will connect gateway IP: %s port:%d",
-             Curtain.server_address.ip, Curtain.server_address.port);
+    //ESP_LOGI(TAG, "will connect gateway IP: %s port:%d", Curtain.server_address.ip, Curtain.server_address.port);
+
+    ESP_LOGI(TAG, "will connect gateway IP: %s port:%d", TCP_SERVER_ADDRESS, TCP_PORT); //客户要求写死IP及端口
     connect_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (connect_socket < 0) {
         show_socket_error_reason("create client", connect_socket);
@@ -735,8 +736,10 @@ esp_err_t create_tcp_client(void) {
     }
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(Curtain.server_address.port);
-    server_addr.sin_addr.s_addr = inet_addr(Curtain.server_address.ip);
+//    server_addr.sin_port = htons(Curtain.server_address.port);
+//    server_addr.sin_addr.s_addr = inet_addr(Curtain.server_address.ip);
+    server_addr.sin_port = htons(TCP_PORT);//客户要求写死IP及端口
+    server_addr.sin_addr.s_addr = inet_addr(TCP_SERVER_ADDRESS);//客户要求写死IP及端口
     ESP_LOGI(TAG, "connecting server...");
 
     if (connect(connect_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {
