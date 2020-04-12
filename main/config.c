@@ -92,7 +92,7 @@ esp_err_t params_init(void)
                         "\toptical_sensor_status\": %d,\n"
                         "\tlumen\": %d,\n"
                         "\tcurtain_position: %d,\n"
-                        "\tserver_ip: %s,\n"
+                        "\tserver_domain: %s,\n"
                         "\tserver_port: %d,\n"
                         "\n}",
                  Curtain.is_wifi_config ? "true" : "false",
@@ -104,8 +104,10 @@ esp_err_t params_init(void)
                  Curtain.optical_sensor_status,
                  Curtain.lumen,
                  Curtain.curtain_position,
-                 Curtain.server_address.ip,
-                 Curtain.server_address.port
+                 SERVER_DOMAIN,
+                 SERVER_PORT
+                 //Curtain.server_address.ip,
+                 //Curtain.server_address.port
         );
     }
 

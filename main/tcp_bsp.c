@@ -4,6 +4,7 @@
 
 #include <string.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
@@ -724,10 +725,68 @@ esp_err_t create_tcp_server(bool isCreatServer) {
     return ESP_OK;
 }
 
-esp_err_t create_tcp_client(void) {
-    //ESP_LOGI(TAG, "will connect gateway IP: %s port:%d", Curtain.server_address.ip, Curtain.server_address.port);
+static struct addrinfo *resolve_host_name(const char *host, size_t hostlen)
+{
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
 
-    ESP_LOGI(TAG, "will connect gateway IP: %s port:%d", TCP_SERVER_ADDRESS, TCP_PORT); //客户要求写死IP及端口
+    char *use_host = strndup(host, hostlen);
+    if (!use_host) {
+        return NULL;
+    }
+
+    ESP_LOGD(TAG, "host:%s: strlen %lu", use_host, (unsigned long)hostlen);
+    struct addrinfo *res;
+    if (getaddrinfo(use_host, NULL, &hints, &res)) {
+        ESP_LOGE(TAG, "couldn't get hostname for :%s:", use_host);
+        free(use_host);
+        return NULL;
+    }
+    free(use_host);
+    return res;
+}
+
+static int tcp_client_task(char *ip, size_t len)
+{
+//    char rx_buffer[128];
+//    char addr_str[128];
+//    int addr_family;
+//    int ip_protocol;
+
+    struct addrinfo *cur;
+    // 域名解析得到ip地址
+    struct addrinfo *res = resolve_host_name(SERVER_DOMAIN, strlen(SERVER_DOMAIN));
+    if (!res) {
+        ESP_LOGI(TAG, "DNS resolve host name failed!");
+        return -1;
+    }
+
+    for (cur = res; cur != NULL; cur = cur->ai_next) {
+        inet_ntop(AF_INET, &(((struct sockaddr_in *)cur->ai_addr)->sin_addr), ip, len);
+        ESP_LOGI(TAG, "DNS IP:[%s]", ip);
+        if (strlen(ip) != 0) {
+            ESP_LOGI(TAG, "Server IP: %s Server Port:%d", ip, SERVER_PORT);
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+
+esp_err_t create_tcp_client(void) {
+    char ip[128] = { 0 };
+    while (1) {
+        if (!tcp_client_task(ip, 128))
+            break;
+
+        vTaskDelay(10000 / portTICK_RATE_MS);
+    }
+
+    //ESP_LOGI(TAG, "will connect gateway IP: %s port:%d", Curtain.server_address.ip, Curtain.server_address.port);
+    ESP_LOGI(TAG, "will connect ip: %s port:%d", ip, SERVER_PORT); //客户要求写死IP及端口
     connect_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (connect_socket < 0) {
         show_socket_error_reason("create client", connect_socket);
@@ -738,8 +797,8 @@ esp_err_t create_tcp_client(void) {
     server_addr.sin_family = AF_INET;
 //    server_addr.sin_port = htons(Curtain.server_address.port);
 //    server_addr.sin_addr.s_addr = inet_addr(Curtain.server_address.ip);
-    server_addr.sin_port = htons(TCP_PORT);//客户要求写死IP及端口
-    server_addr.sin_addr.s_addr = inet_addr(TCP_SERVER_ADDRESS);//客户要求写死IP及端口
+    server_addr.sin_port = htons(SERVER_PORT);//客户要求写死IP及端口
+    server_addr.sin_addr.s_addr = inet_addr(ip);//客户要求写死IP及端口
     ESP_LOGI(TAG, "connecting server...");
 
     if (connect(connect_socket, (struct sockaddr *) &server_addr, sizeof(server_addr)) < 0) {

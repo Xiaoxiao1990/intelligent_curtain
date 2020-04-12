@@ -20,6 +20,9 @@ typedef struct {
 #define WEEKLY_MASK_FRIDAY          0x20
 #define WEEKLY_MASK_SATURDAY        0x40
 
+#define SERVER_DOMAIN      "abc.mbzn360.com"     //
+#define SERVER_PORT         6001
+
 typedef enum {
     DISABLE,
     ENABLE
