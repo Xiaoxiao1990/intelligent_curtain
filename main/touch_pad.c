@@ -89,7 +89,7 @@ static void tp_read_task(void *pvParameter)
     while (1) {
         switch (network_state) {
             case NETWORK_DO_NOT_CONFIG:
-                gpio_set_level(BLINK_GPIO1, 0);
+                //gpio_set_level(BLINK_GPIO1, 0);
                 break;
             case NETWORK_CONNECTTING:
                 if (led_cnt++ < 5) {
@@ -113,10 +113,10 @@ static void tp_read_task(void *pvParameter)
                 }
                 break;
             case NETWORK_ERROR:
-                gpio_set_level(BLINK_GPIO1, 0);
+                gpio_set_level(BLINK_GPIO1, 1);
                 break;
             default:
-                gpio_set_level(BLINK_GPIO1, 0);
+                gpio_set_level(BLINK_GPIO1, 1);
                 break;
         }
 
@@ -137,6 +137,8 @@ static void tp_read_task(void *pvParameter)
                     state++;
                     release_time_cnt = 0;
                     ESP_LOGI(TAG, "It's time to re-config WiFi...");
+                    network_state = NETWORK_FIRST_CONFIG;
+                    Curtain.is_wifi_config = false;
                 }
                 break;
             case 1:
