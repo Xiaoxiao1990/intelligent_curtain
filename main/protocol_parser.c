@@ -82,22 +82,22 @@ int protocol_parser(protocol_data_block_t *data)
                     // id 6bytes
                     memcpy(&(tx[3]), &Curtain.device_id, 6);
                     // battery
-                    tx[10] = Curtain.battery;
+                    tx[9] = Curtain.battery;
                     // battery temp
-                    tx[11] = Curtain.bat_temp;
+                    tx[10] = Curtain.bat_temp;
                     // battery status, 0:not charge, 1: charging, 2:charged
-                    tx[12] = Curtain.bat_state;
+                    tx[11] = Curtain.bat_state;
                     // curtain position
-                    tx[13] = Curtain.curtain_position;
+                    tx[12] = (uint8_t)Curtain.curtain_ratio;
                     // optical status
-                    tx[14] = Curtain.optical_sensor_status;
+                    tx[13] = Curtain.optical_sensor_status;
                     // lumen
-                    tx[15] = Curtain.lumen;
+                    tx[14] = Curtain.lumen;
                     // work mode, 0:no mode, 1: summer, 2:winter
-                    tx[16] = Curtain.work_mode;
+                    tx[15] = Curtain.work_mode;
                     // light gate value
-                    tx[17] = Curtain.lumen_gate_value;
-                    data->tx_len = 18;
+                    tx[16] = (uint8_t)Curtain.lumen_gate_value;
+                    data->tx_len = 17;
                 } else if (rx[2] == 0x03) {
                     ESP_LOGI(PARSER_TAG, "Read switcher time");
                     if (rx[3] > 3) {
