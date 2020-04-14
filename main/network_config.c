@@ -34,6 +34,7 @@ Network_State_Typedef network_state;
 */
 wifi_config_t *new_wifi_config;
 static void sc_callback(smartconfig_status_t status, void *pdata) {
+    smartconfig_type_t *type = pdata;
     switch (status) {
         case SC_STATUS_WAIT:                    //等待配网
             ESP_LOGI(TAG, "SC_STATUS_WAIT");
@@ -42,6 +43,12 @@ static void sc_callback(smartconfig_status_t status, void *pdata) {
             ESP_LOGI(TAG, "SC_STATUS_FINDING_CHANNEL");
             break;
         case SC_STATUS_GETTING_SSID_PSWD:       //获取到ssid和密码
+            if	(*type	==	SC_TYPE_ESPTOUCH)	{
+                ESP_LOGI(TAG, "SC_TYPE:SC_TYPE_ESPTOUCH");
+            } else {
+                ESP_LOGI(TAG, "SC_TYPE:SC_TYPE_AIRKISS");
+            }
+
             ESP_LOGI(TAG, "SC_STATUS_GETTING_SSID_PSWD");
             break;
         case SC_STATUS_LINK:                    //连接获取的ssid和密码
@@ -91,9 +98,10 @@ static void sc_callback(smartconfig_status_t status, void *pdata) {
 void smart_config_task(void *parm) {
     EventBits_t uxBits;
     //使用ESP-TOUCH配置
-    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
+    //ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
+    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH_AIRKISS));
     //开始sc
-    ESP_ERROR_CHECK(esp_smartconfig_start(sc_callback));
+    ESP_ERROR_CHECK(esp_smartconfig_start(sc_callback, 1));
     while (1) {
         //死等事件组：CONNECTED_BIT | ESPTOUCH_DONE_BIT
         uxBits = xEventGroupWaitBits(wifi_event_group, CONNECTED_BIT | ESPTOUCH_DONE_BIT, true, false, portMAX_DELAY);
