@@ -55,7 +55,7 @@ typedef struct {
 } work_time_t;
 
 typedef struct Config_TAG {
-    char device_id[10];
+    uint8_t device_id[10];
     bool is_wifi_config;
     curtain_state_t state;
 
