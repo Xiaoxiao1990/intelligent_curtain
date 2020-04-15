@@ -80,7 +80,7 @@ int protocol_parser(protocol_data_block_t *data)
                     // 55 01 01
                     memcpy(tx, rx, rx_len);
                     // id 6bytes
-                    esp_base_mac_addr_get(Curtain.device_id);
+                    esp_read_mac(Curtain.device_id, ESP_MAC_WIFI_STA);
                     memcpy(&(tx[3]), &Curtain.device_id, 6);
                     // battery
                     tx[9] = Curtain.battery;
