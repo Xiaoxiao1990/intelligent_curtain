@@ -66,6 +66,7 @@ typedef struct Config_TAG {
     uint8_t lumen;
     uint32_t lumen_gate_value;
     uint8_t work_mode;
+    uint8_t sleep_mode;
     uint32_t curtain_ratio;
     uint32_t curtain_position;
     uint32_t target_position;

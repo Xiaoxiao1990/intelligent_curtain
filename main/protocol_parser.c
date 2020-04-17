@@ -111,6 +111,14 @@ int protocol_parser(protocol_data_block_t *data)
                         memcpy(&tx[4], &Curtain.curtain_timer[rx[3]], 5);
                         data->tx_len = 9;
                     }
+                } else if (rx[2] == 0x06) {
+                    //TODO
+                    tx[0] = 0x55;
+                    tx[1] = 0x01;
+                    tx[2] = 0x06;
+                    tx[3] = Curtain.work_mode;
+                    tx[4] = Curtain.sleep_mode;
+                    data->tx_len = 5;
                 } else {
                     ESP_LOGE(PARSER_TAG, "Undefined operation");
                     tx[0] = 0x55;
@@ -180,6 +188,23 @@ int protocol_parser(protocol_data_block_t *data)
                             motor_forward();
                         Curtain.state = CURTAIN_MANUAL_ADJUST;
                     }
+                    memcpy(tx, rx, rx_len);
+                    data->tx_len = rx_len;
+                } else if (rx[2] == 0x06) {
+                    // set work mode
+                    // TODO
+                    if (rx[3] == 0x00) {
+                        Curtain.work_mode = 0x00;
+                    } else {
+                        Curtain.work_mode = 0x01;
+                    }
+
+                    if (rx[4] == 0x00) {
+                        Curtain.sleep_mode = 0x00;
+                    } else {
+                        Curtain.sleep_mode = 0x01;
+                    }
+
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
                 } else {
