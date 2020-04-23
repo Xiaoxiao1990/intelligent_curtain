@@ -649,7 +649,34 @@ void recv_data(void *pvParameters) {
     vTaskDelete(NULL);
 }
 */
-
+void heart_beat(void)
+{
+    uint8_t tx[200] = { 0 };
+    tx[0] = 0x55;
+    tx[1] = 0x01;
+    tx[2] = 0x01;
+    // id 6bytes
+    esp_read_mac(Curtain.device_id, ESP_MAC_BT);
+    esp_log_buffer_hex("MAC", Curtain.device_id, 6);
+    memcpy(&(tx[3]), &Curtain.device_id, 6);
+    // battery
+    tx[9] = Curtain.battery;
+    // battery temp
+    tx[10] = Curtain.bat_temp;
+    // battery status, 0:not charge, 1: charging, 2:charged
+    tx[11] = Curtain.bat_state;
+    // curtain position
+    tx[12] = (uint8_t)Curtain.curtain_ratio;
+    // optical status
+    tx[13] = Curtain.optical_sensor_status;
+    // lumen
+    tx[14] = Curtain.lumen;
+    // work mode, 0:no mode, 1: summer, 2:winter
+    tx[15] = Curtain.work_mode;
+    // light gate value
+    tx[16] = (uint8_t)Curtain.lumen_gate_value;
+    send(connect_socket, tx, 17, 0);
+}
 void recv_data(void *pvParameters) {
     int len = 0;
     //char databuff[BUF_SIZE];

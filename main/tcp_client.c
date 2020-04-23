@@ -63,7 +63,7 @@ void tcp_client(void *pvParameters)
 
         while (1) {
 
-            vTaskDelay(3000 / portTICK_RATE_MS);
+            vTaskDelay(5000 / portTICK_RATE_MS);
 
 #if TCP_SERVER_CLIENT_OPTION
             //重新建立server，流程和上面一样
@@ -103,7 +103,8 @@ void tcp_client(void *pvParameters)
                     }
                 }
             }
-            //ESP_LOGI(TAG, "client loop");
+            // heart beat
+            heart_beat();
 #endif
         }
     }
