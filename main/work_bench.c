@@ -290,8 +290,18 @@ void work_bench(void)
     charge_state_detect_init();
 
     Curtain.state = CURTAIN_IDLE;
+    memset(&g_adcs_vals, 0, sizeof(adc_value_t));
     xTaskCreate(&timer_task, "timer_task", 4096, NULL, 6, NULL);
     int a = 0;
+
+    while (a++ < 100) {
+        get_adcs_values();
+
+        //if (g_adcs_vals.motor_fwd_vtg < 100 && g_adcs_vals.motor_bwd_vtg < 100)
+            //break;
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
 
     while (1) {
         if (a++ > 30) {
