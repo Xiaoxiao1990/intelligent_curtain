@@ -82,7 +82,7 @@ esp_err_t params_init(void)
             return err;
         }
 
-        esp_base_mac_addr_get(Curtain.device_id);
+        esp_read_mac(Curtain.device_id, ESP_MAC_BT);
 
         ESP_LOGI(TAG, "Wi-Fi config: %s\n"
                         "Wi-Fi STA SSID: %s\n"

@@ -27,6 +27,13 @@ void curtain_set_position();
 
 static uint8_t curtain_set_position_state = 0, curtain_width_adjust_state = 0;
 
+void entrace_curtain_set_position(uint32_t target)
+{
+    curtain_set_position_state = 0;
+    Curtain.state = CURTAIN_SET_POSITION;
+    Curtain.target_position = target;
+}
+
 void curtain_set_position()
 {
     switch (curtain_set_position_state) {
@@ -283,9 +290,9 @@ void work_bench(void)
     charge_state_detect_init();
 
     Curtain.state = CURTAIN_IDLE;
-
     xTaskCreate(&timer_task, "timer_task", 4096, NULL, 6, NULL);
     int a = 0;
+
     while (1) {
         if (a++ > 30) {
             a = 0;

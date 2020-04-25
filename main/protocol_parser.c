@@ -9,6 +9,7 @@
 #include "protocol_parser.h"
 #include "config.h"
 #include "motor_controller.h"
+#include "work_bench.h"
 
 #define PARSER_TAG      "PARSER"
 
@@ -164,16 +165,20 @@ int protocol_parser(protocol_data_block_t *data)
                     }
                 } else if (rx[2] == 0x04) {
                     ESP_LOGI(PARSER_TAG, "Set curtain ratio: %d%%", rx[3]);
+                    motor_stop();
+                    sleep(1);
                     if (rx[3] > 100) {
                         // motor_target_position(Curtain.curtain_width, 1);
-                        Curtain.target_position = Curtain.curtain_width;
-                        Curtain.state = CURTAIN_SET_POSITION;
+                        // Curtain.target_position = Curtain.curtain_width;
+                        // Curtain.state = CURTAIN_SET_POSITION;
+                        entrace_curtain_set_position(Curtain.curtain_width);
                     } else {
                         // motor_target_position(Curtain.curtain_width * rx[3] / 100, 1);
-                        Curtain.target_position = Curtain.curtain_width * rx[3] / 100;
-                        Curtain.state = CURTAIN_SET_POSITION;
+                        // Curtain.target_position = Curtain.curtain_width * rx[3] / 100;
+                        // Curtain.state = CURTAIN_SET_POSITION;
+                        entrace_curtain_set_position(Curtain.curtain_width * rx[3] / 100);
                     }
-
+                    ESP_LOGI(PARSER_TAG, "Curtain.target_position:%d", Curtain.target_position);
                     // TODO: done
                     memcpy(tx, rx, rx_len);
                     data->tx_len = rx_len;
